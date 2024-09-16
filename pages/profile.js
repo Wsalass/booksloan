@@ -1,14 +1,16 @@
 // pages/profile.js
 import { useState, useEffect } from 'react';
-import { getAuth } from 'firebase/auth';
+import { useRouter } from 'next/router';
+import { useAuth } from '../hooks/useAuth'; // Asegúrate de que la ruta sea correcta
 import { db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { useRouter } from 'next/router';
 
 const Profile = () => {
+  const { user, authLoading } = useAuth(); // Utiliza el hook useAuth para obtener el usuario
   const [userData, setUserData] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [nombre, setNombre] = useState('');
+  const [email, setEmail] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [telefono, setTelefono] = useState('');
   const [fotoPerfil, setFotoPerfil] = useState('');
@@ -20,9 +22,6 @@ const Profile = () => {
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const auth = getAuth();
-      const user = auth.currentUser;
-
       if (user) {
         try {
           const userRef = doc(db, 'usuarios', user.uid);
@@ -31,6 +30,7 @@ const Profile = () => {
             const data = userSnapshot.data();
             setUserData(data);
             setNombre(data.nombre);
+            setEmail(data.email);
             setFechaNacimiento(data.fecha_nacimiento);
             setTelefono(data.telefono || '');
             setFotoPerfil(data.foto_perfil || '');
@@ -38,7 +38,7 @@ const Profile = () => {
             setTecnologo(data.tecnologo || '');
 
             const prestamosRef = collection(db, 'prestamos');
-            const q = query(prestamosRef, where('user_id', '==', user.uid));
+            const q = query(prestamosRef, where('usuario_id', '==', user.uid));
             const snapshot = await getDocs(q);
             const prestamos = await Promise.all(snapshot.docs.map(async (doc) => {
               const detalleRef = doc(db, 'detalles_prestamos', doc.id);
@@ -50,13 +50,11 @@ const Profile = () => {
         } catch (error) {
           console.error('Error fetching user data:', error);
         }
-      } else {
-        router.push('/login');
       }
     };
 
     fetchUserData();
-  }, [router]);
+  }, [user, authLoading, router]);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -70,9 +68,6 @@ const Profile = () => {
   };
 
   const handleSave = async () => {
-    const auth = getAuth();
-    const user = auth.currentUser;
-
     if (user) {
       try {
         const userRef = doc(db, 'usuarios', user.uid);
@@ -92,7 +87,8 @@ const Profile = () => {
     }
   };
 
-  if (!userData) return <p className="text-center text-red-500">Cargando datos...</p>;
+  if (authLoading) return <p className="text-center text-red-500">Cargando datos...</p>;
+  if (!userData) return <p className="text-center text-red-500">No se encontraron datos de usuario.</p>;
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -126,6 +122,20 @@ const Profile = () => {
               />
             ) : (
               <p className="text-xl text-gray-600">{nombre}</p>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xl font-semibold mb-2 text-gray-700">Nombre:</label>
+            {editMode ? (
+              <input
+                type="text"
+                value={email}
+                onChange={(e) => setNombre(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+              />
+            ) : (
+              <p className="text-xl text-gray-600">{email}</p>
             )}
           </div>
 

@@ -23,8 +23,9 @@ const LibroDetalle = () => {
           const libroData = libroSnapshot.data();
           setLibro(libroData);
 
-          if (libroData.autores && libroData.autores.length > 0) {
-            const autoresPromises = libroData.autores.map(async (autorId) => {
+          // Obtener autores
+          if (libroData.autor_id && libroData.autor_id.length > 0) {
+            const autoresPromises = libroData.autor_id.map(async (autorId) => {
               const autorDoc = await getDoc(doc(db, 'autores', autorId));
               return autorDoc.exists() ? autorDoc.data().nombre : 'Desconocido';
             });
@@ -33,15 +34,18 @@ const LibroDetalle = () => {
           } else {
             setAutores(['No especificado']);
           }
-          if (libroData.editorial) {
-            const editorialDoc = await getDoc(doc(db, 'editoriales', libroData.editorial));
+
+          // Obtener editorial
+          if (libroData.editorial_id) {
+            const editorialDoc = await getDoc(doc(db, 'editoriales', libroData.editorial_id));
             setEditorial(editorialDoc.exists() ? editorialDoc.data().nombre : 'Desconocido');
           } else {
             setEditorial('No especificado');
           }
 
-          if (libroData.generos && libroData.generos.length > 0) {
-            const generosPromises = libroData.generos.map(async (generoId) => {
+          // Obtener géneros
+          if (libroData.genero_id && libroData.genero_id.length > 0) {
+            const generosPromises = libroData.genero_id.map(async (generoId) => {
               const generoDoc = await getDoc(doc(db, 'generos', generoId));
               return generoDoc.exists() ? generoDoc.data().nombre : 'Desconocido';
             });
@@ -52,11 +56,11 @@ const LibroDetalle = () => {
           }
         } else {
           console.error('El libro no existe');
-          router.push('/404'); // Redirect to a 404 page if the book is not found
+          router.push('/404'); // Redirige a una página 404 si el libro no se encuentra
         }
       } catch (error) {
         console.error('Error fetching book details:', error);
-        router.push('/404'); // Redirect to a 404 page on error
+        router.push('/404'); // Redirige a una página 404 en caso de error
       } finally {
         setLoading(false);
       }
@@ -90,7 +94,7 @@ const LibroDetalle = () => {
         </div>
       </div>
       <button
-        onClick={() => router.push('/prestamo/${id}')}
+        onClick={() => router.push(`/libro/prestamo/${id}`)}
         className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-4 rounded"
       >
         Pedir Préstamo

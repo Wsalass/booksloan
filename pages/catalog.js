@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import Link from 'next/link';
+import LibroCard from '../components/CardLibro';
 
 const Catalog = () => {
   const [libros, setLibros] = useState([]);
@@ -9,62 +9,72 @@ const Catalog = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenero, setSelectedGenero] = useState('');
   const [generos, setGeneros] = useState([]);
+  const [error, setError] = useState(null);
 
-  // Fetch géneros
-  useEffect(() => {
-    const fetchGeneros = async () => {
-      try {
-        const generosRef = collection(db, 'generos');
-        const generosSnapshot = await getDocs(generosRef);
-        const generosData = generosSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setGeneros(generosData);
-      } catch (error) {
-        console.error('Error fetching genres:', error);
+  // Función para obtener géneros
+  const fetchGeneros = async () => {
+    try {
+      const generosRef = collection(db, 'generos');
+      const generosSnapshot = await getDocs(generosRef);
+      const generosData = generosSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setGeneros(generosData);
+    } catch (error) {
+      console.error('Error fetching genres:', error);
+      setError('No se pudieron cargar los géneros. Inténtalo más tarde.');
+    }
+  };
+
+  // Función para obtener libros
+  const fetchLibros = async () => {
+    try {
+      setLoading(true);
+      const librosRef = collection(db, 'libros');
+      let librosQuery = query(librosRef, orderBy('titulo'));
+
+      // Filtro por término de búsqueda
+      if (searchTerm) {
+        librosQuery = query(
+          librosRef,
+          where('titulo', '>=', searchTerm),
+          where('titulo', '<=', searchTerm + '\uf8ff'),
+          orderBy('titulo')
+        );
       }
-    };
 
+      // Filtro por género seleccionado
+      if (selectedGenero) {
+        librosQuery = query(
+          librosRef,
+          where('generos_id', 'array-contains', selectedGenero),
+          orderBy('titulo')
+        );
+      }
+
+      const librosSnapshot = await getDocs(librosQuery);
+      const librosData = librosSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setLibros(librosData);
+    } catch (error) {
+      console.error('Error fetching books:', error);
+      setError('No se pudieron cargar los libros. Inténtalo más tarde.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // useEffect para cargar géneros al inicio
+  useEffect(() => {
     fetchGeneros();
   }, []);
 
-  // Fetch libros
+  // useEffect para cargar libros cuando cambia el término de búsqueda o el género seleccionado
   useEffect(() => {
-    const fetchLibros = async () => {
-      try {
-        setLoading(true);
-        const librosRef = collection(db, 'libros');
-        let librosQuery = query(librosRef, orderBy('titulo'));
-
-        // Filtro por título si hay término de búsqueda
-        if (searchTerm) {
-          librosQuery = query(librosRef, 
-            where('titulo', '>=', searchTerm),
-            where('titulo', '<=', searchTerm + '\uf8ff'),
-            orderBy('titulo')
-          );
-        }
-
-        // Filtro por género si se selecciona uno
-        if (selectedGenero) {
-          librosQuery = query(librosRef, where('generos', 'array-contains', selectedGenero), orderBy('titulo'));
-        }
-
-        const librosSnapshot = await getDocs(librosQuery);
-        const librosData = librosSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        setLibros(librosData);
-      } catch (error) {
-        console.error('Error fetching books:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchLibros();
   }, [searchTerm, selectedGenero]);
 
@@ -98,6 +108,8 @@ const Catalog = () => {
           </select>
         </div>
 
+        {error && <p className="text-center text-lg text-red-500">{error}</p>}
+
         {loading ? (
           <p className="text-center text-lg text-gray-500">Cargando...</p>
         ) : libros.length === 0 ? (
@@ -105,21 +117,7 @@ const Catalog = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-10">
             {libros.map((libro) => (
-              <div key={libro.id} className="group bg-white border border-gray-200 rounded-lg overflow-hidden shadow-lg transition-transform transform hover:scale-105">
-                <Link href={`/libro/${libro.id}`} as={`/libro/${libro.id}`}>
-                  <div className="w-full h-72 overflow-hidden">
-                    <img
-                      src={libro.imagen || '/default-book.png'}
-                      alt={libro.titulo}
-                      className="h-full w-full object-cover object-center transition-transform duration-300 ease-in-out transform group-hover:scale-110"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="mt-4 text-lg font-medium text-gray-700 group-hover:text-verde-claro transition-colors duration-300">{libro.titulo}</h3>
-                    <p className="mt-1 text-md text-gray-500">{libro.autor}</p>
-                  </div>
-                </Link>
-              </div>
+              <LibroCard libro={libro} key={libro.id} />
             ))}
           </div>
         )}

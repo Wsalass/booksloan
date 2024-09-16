@@ -1,57 +1,98 @@
 import { useEffect, useState } from 'react';
-import { getAuth } from 'firebase/auth';
-import { collection, query, orderBy, limit, getDocs, where, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { useRouter } from 'next/router';
-import { db } from '../lib/firebase'; // Asegúrate de tener configurado tu archivo firebase.js
+import { db } from '../lib/firebase';
+import LibroCard from '../components/CardLibro';
+import { useAuth } from '../hooks/useAuth';
 
 const WelcomePage = () => {
-  const [user, setUser] = useState(null);
-  const [userData, setUserData] = useState(null);
+  const { user, userData } = useAuth();
+  const [libros, setLibros] = useState([]);
   const [newlyAddedBooks, setNewlyAddedBooks] = useState([]);
   const [userLoanedBooks, setUserLoanedBooks] = useState([]);
-
-  const auth = getAuth();
+  const [editorials, setEditorials] = useState({});
+  const [booksByEditorial, setBooksByEditorial] = useState({});
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        fetchUserData(currentUser.uid);
-      } else {
-        fetchPublicBooks(); // Cargar los libros recién agregados si no hay sesión iniciada
+    const fetchLibrosAndEditorials = async () => {
+      try {
+        // Obtener todos los libros
+        const librosRef = collection(db, 'libros');
+        const librosSnapshot = await getDocs(librosRef);
+        const librosData = librosSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setLibros(librosData);
+
+        // Obtener libros recién agregados
+        const newBooksQuery = query(librosRef, orderBy('created_at', 'desc'), limit(3));
+        const newBooksSnapshot = await getDocs(newBooksQuery);
+        const newlyAddedBooks = newBooksSnapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        }));
+        setNewlyAddedBooks(newlyAddedBooks);
+
+        // Obtener todas las editoriales
+        const editorialsRef = collection(db, 'editoriales');
+        const editorialsSnapshot = await getDocs(editorialsRef);
+        const editorialsData = editorialsSnapshot.docs.reduce((acc, doc) => {
+          acc[doc.id] = doc.data();
+          return acc;
+        }, {});
+
+        // Filtrar las editoriales que tienen al menos un libro
+        const booksByEditorial = {};
+        librosData.forEach(libro => {
+          const editorialId = libro.editorial_id; // Ajuste: `editorial_id`
+          if (editorialsData[editorialId]) {
+            if (!booksByEditorial[editorialId]) {
+              booksByEditorial[editorialId] = [];
+            }
+            booksByEditorial[editorialId].push(libro);
+          }
+        });
+
+        // Actualizar el estado con las editoriales que tienen libros
+        const filteredEditorials = Object.keys(editorialsData).reduce((acc, editorialId) => {
+          if (booksByEditorial[editorialId]) {
+            acc[editorialId] = editorialsData[editorialId];
+          }
+          return acc;
+        }, {});
+
+        setEditorials(filteredEditorials);
+        setBooksByEditorial(booksByEditorial);
+      } catch (error) {
+        console.error("Error al obtener libros o editoriales: ", error);
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [auth]);
+    fetchLibrosAndEditorials();
+  }, []);
 
-  const fetchUserData = async (uid) => {
-    const userRef = doc(db, 'usuarios', uid); // Cambia esta línea a usar 'doc' en vez de 'collection'
+  useEffect(() => {
+    if (user) {
+      fetchUserLoanedBooks(user.uid);
+    } else {
+      fetchPublicBooks();
+    }
+  }, [user]);
+
+  const fetchUserLoanedBooks = async (uid) => {
     try {
-      const userSnapshot = await getDoc(userRef);
-      if (userSnapshot.exists()) {
-        setUserData(userSnapshot.data()); // Establece los datos del usuario
-      } else {
-        console.error("Usuario no encontrado");
-      }
-
-      // Obtener libros en préstamo del usuario
       const loansRef = collection(db, 'prestamos');
       const loanQuery = query(loansRef, where('usuario_id', '==', uid));
       const loanSnapshot = await getDocs(loanQuery);
-      const loanedBooks = loanSnapshot.docs.map(doc => doc.data().libro);
+      const loanedBooks = loanSnapshot.docs.map(doc => ({
+        ...doc.data().libro,
+        id: doc.id
+      }));
       setUserLoanedBooks(loanedBooks);
-
-      // Obtener libros recién agregados
-      const booksRef = collection(db, 'libros');
-      const newBooksQuery = query(booksRef, orderBy('created_at', 'desc'), limit(3));
-      const newBooksSnapshot = await getDocs(newBooksQuery);
-      const newlyAddedBooks = newBooksSnapshot.docs.map(doc => doc.data());
-      setNewlyAddedBooks(newlyAddedBooks);
-
     } catch (error) {
-      console.error("Error obteniendo datos del usuario: ", error);
+      console.error("Error obteniendo libros en préstamo: ", error);
     }
   };
 
@@ -67,30 +108,46 @@ const WelcomePage = () => {
     }
   };
 
-  const handleLoginAlert = () => {
-    alert('Debe iniciar sesión para ver los detalles del libro.');
-  };
-
   const goToCatalog = () => router.push('/catalog');
-  const goToBookCRUD = () => router.push('/bookCRUD');
+  const goToEditorialBooks = (editorialId) => router.push(`/editorial/${editorialId}`);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       {!user ? (
         <>
-          <h1 className="text-5xl font-bold mb-4 text-gray-800">Bienvenido a Autobooks</h1>
-          <p className="text-xl text-gray-600 mb-6">Descubre y pide prestamos de tus libros favoritos.</p>
-          <div className="space-x-4">
-            <button onClick={() => router.push('/login')} className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition-all">Iniciar Sesión</button>
-            <button onClick={() => router.push('/register')} className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition-all">Registrarse</button>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800 text-center">Bienvenido a Autobooks</h1>
+          <div className="w-full max-w-4xl mb-8 text-center m-10">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Libros recién agregados a nuestro catálogo</h2>
+            <p className="text-lg md:text-xl text-gray-600 mb-6 text-center">Descubre los últimos títulos que han llegado a nuestra colección. En esta sección, encontrarás los libros más recientes que hemos añadido, cada uno con su propia historia y encanto. Mantente al tanto de las novedades.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {newlyAddedBooks.map((libro) => (<LibroCard key={libro.id} libro={libro} />))}
+            </div>
+          </div>
+          <div className="w-full max-w-4xl mb-8 text-center m-10">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4">Explora libros de estas maravillosas editoriales</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {Object.keys(editorials).map(editorialId => (
+                <button
+                  key={editorialId}
+                  onClick={() => goToEditorialBooks(editorialId)}
+                  className="relative bg-white border border-gray-300 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-transform transform hover:scale-105"
+                >
+                  <img
+                    src={editorials[editorialId]?.imagen || '/default-editorial.png'}
+                    alt={editorials[editorialId]?.nombre}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
           </div>
         </>
       ) : (
         <>
-          <h1 className="text-5xl font-bold mb-4 text-gray-800">¡Hola, {userData?.nombre || 'Usuario'}!</h1>
-          <p className="text-xl text-gray-600 mb-6">Bienvenido de nuevo a Autobooks, tu plataforma para pedir prestamos de tus libros favoritos.</p>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">¡Hola, {userData?.nombre || 'Usuario'}!</h1>
+          <p className="text-lg md:text-xl text-gray-600 mb-6 text-center">Bienvenido de nuevo a Autobooks, tu plataforma para pedir préstamos de tus libros favoritos.</p>
           <div className="w-full max-w-4xl mb-8">
-            <h2 className="text-3xl font-semibold text-gray-700 mb-4">Tus libros en préstamo</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Tus libros en préstamo</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
               {userLoanedBooks.map((book) => (
                 <div key={book.id} className="bg-white shadow-md rounded-lg p-4 hover:shadow-lg transition-shadow duration-300">
@@ -100,11 +157,31 @@ const WelcomePage = () => {
               ))}
             </div>
           </div>
-          <div className="space-x-4">
-            <button onClick={goToCatalog} className="bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition-all">Ir al Catálogo</button>
-            {userData?.rol_id === 4 && (
-              <button onClick={goToBookCRUD} className="bg-red-500 hover:bg-red-400 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition-all">Administrar Libros</button>
-            )}
+          <div className="w-full max-w-4xl mb-8">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Libros recién agregados a nuestro catálogo</h2>
+            <p className="text-lg md:text-xl text-gray-600 mb-6 text-center">Descubre los últimos títulos que han llegado a nuestra colección. En esta sección, encontrarás los libros más recientes que hemos añadido, cada uno con su propia historia y encanto. Mantente al tanto de las novedades.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {newlyAddedBooks.map((libro) => (<LibroCard key={libro.id} libro={libro} />))}
+            </div>
+          </div>
+
+          <div className="w-full max-w-4xl mb-8">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Explora libros de estas maravillosas editoriales</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {Object.keys(editorials).map(editorialId => (
+                <button
+                  key={editorialId}
+                  onClick={() => goToEditorialBooks(editorialId)}
+                  className="relative bg-white border border-gray-300 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-transform transform hover:scale-105"
+                >
+                  <img
+                    src={editorials[editorialId]?.imagen || '/default-editorial.png'}
+                    alt={editorials[editorialId]?.nombre}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}

@@ -68,10 +68,12 @@ const Admin = () => {
 
   const addLibro = async () => {
     try {
+      const createdAt = new Date().toISOString();
       const docRef = await addDoc(collection(db, 'libros'), {
         ...libro,
         autor_id: selectedAutores,
-        genero_id: selectedGeneros
+        genero_id: selectedGeneros,
+        created_at: createdAt
       });
 
       setLibros([...libros, { id: docRef.id, ...libro, autor_id: selectedAutores, genero_id: selectedGeneros }]);
@@ -183,17 +185,17 @@ const Admin = () => {
   const handleAddEditorial = async (e) => {
     e.preventDefault();
     try {
-      const docRef = await addDoc(collection(db, 'editoriales'), { nombre: editorial });
+      const { nombre, imagen } = editorial;
+      const docRef = await addDoc(collection(db, 'editoriales'), { nombre, imagen });
 
-      setEditoriales([...editoriales, { id: docRef.id, nombre: editorial }]);
+      setEditoriales([...editoriales, { id: docRef.id, nombre, imagen }]);
       toast.success('Editorial agregada con éxito');
-      setEditorial('');
+      setEditorial({ nombre: '', imagen: '' });
     } catch (error) {
       toast.error('Error adding editorial');
       console.error(error);
     }
   };
-
   const handleDeleteEditorial = async (id) => {
     try {
       await deleteDoc(doc(db, 'editoriales', id));
@@ -366,17 +368,25 @@ const Admin = () => {
         </form>
       </div>
 
-      {/* Formulario para Agregar Editoriales */}
-      <div className="mt-12 bg-white p-8 rounded-lg shadow-md">
+     {/* Formulario para Agregar Editoriales */}
+     <div className="mt-12 bg-white p-8 rounded-lg shadow-md">
         <h2 className="text-2xl font-semibold mb-6 text-gray-800">Agregar Editorial</h2>
         <form onSubmit={handleAddEditorial}>
           <input
             type="text"
-            value={editorial}
-            onChange={(e) => setEditorial(e.target.value)}
+            value={editorial.nombre}
+            onChange={(e) => setEditorial({ ...editorial, nombre: e.target.value })}
             placeholder="Nombre de la Editorial"
             className="mb-4 px-4 py-3 border border-gray-300 rounded-lg w-full"
             required
+          />
+          <p className="">Imagen (URL)</p>
+          <input
+            type="text"
+            value={editorial.imagen}
+            onChange={(e) => setEditorial({ ...editorial, imagen: e.target.value })}
+            placeholder="URL de la Imagen de la Editorial"
+            className="mb-4 px-4 py-3 border border-gray-300 rounded-lg w-full"
           />
           <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg">
             Agregar Editorial
