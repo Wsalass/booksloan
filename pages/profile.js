@@ -6,7 +6,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 const Profile = () => {
-  const { user, authLoading } = useAuth(); // Utiliza el hook useAuth para obtener el usuario
+  const { user, role, authLoading } = useAuth(); 
   const [userData, setUserData] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -18,6 +18,7 @@ const Profile = () => {
   const [tecnologo, setTecnologo] = useState('');
   const [librosPrestados, setLibrosPrestados] = useState([]);
   const [fotoPreview, setFotoPreview] = useState('');
+  const [activeTab, setActiveTab] = useState('perfil');
   const router = useRouter();
 
   useEffect(() => {
@@ -90,153 +91,166 @@ const Profile = () => {
   if (authLoading) return <p className="text-center text-red-500">Cargando datos...</p>;
   if (!userData) return <p className="text-center text-red-500">No se encontraron datos de usuario.</p>;
 
+  const isEstu = role === '0gXv7x0EctdgRrVh96B7';
+  const isProf = role === '7qm4fox9AjtONPXh8YvR';
+  const isFunc = role === 'fNzerO5gAonx0c28MHfK';
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="text-4xl font-bold mb-6 text-gray-800">Perfil de Usuario</h1>
-      <div className="flex flex-col md:flex-row md:items-center mb-6">
-        <div className="relative w-32 h-32 mb-4 md:mb-0">
-          <img
-            src={fotoPreview || fotoPerfil || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEIUxqASqFgPHjQK11brYBvD8pp-l3YM42yQ&s'}
-            alt="Foto de Perfil"
-            className="w-full h-full object-cover rounded-full border border-gray-300 shadow-lg"
-          />
-          {editMode && (
-            <label className="absolute bottom-0 right-0 bg-gray-700 text-white rounded-full p-1 cursor-pointer">
-              <input type="file" onChange={handleImageUpload} className="hidden" />
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 11V7a2 2 0 012-2h10a2 2 0 012 2v4m0 0h2m-2 0v2m0-2H7m4 0h4" />
-              </svg>
-            </label>
+      <header className="bg-lime-500 text-white py-6 px-4">
+        <div className="flex flex-col items-center">
+          <div className="relative w-32 h-32 mb-4">
+            <img
+              src={fotoPreview || fotoPerfil || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEIUxqASqFgPHjQK11brYBvD8pp-l3YM42yQ&s'}
+              alt="Foto de Perfil"
+              className="w-full h-full object-cover rounded-full border border-gray-300 shadow-lg"
+            />
+            {editMode && (
+              <label className="absolute bottom-0 right-0 bg-gray-700 text-white rounded-full p-1 cursor-pointer">
+                <input type="file" onChange={handleImageUpload} className="hidden" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 11V7a2 2 0 012-2h10a2 2 0 012 2v4m0 0h2m-2 0v2m0-2H7m4 0h4" />
+                </svg>
+              </label>
+            )}
+          </div>
+          <h1 className="text-3xl font-bold">{nombre}</h1>
+        </div>
+      </header>
+
+      <div className="my-6">
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => setActiveTab('perfil')}
+            className={`px-4 py-2 rounded-t-lg ${activeTab === 'perfil' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300`}
+          >
+            Información de Perfil
+          </button>
+          {(isEstu || isProf || isFunc) && (
+            <button onClick={() => setActiveTab('prestamos')}className={`px-4 py-2 rounded-t-lg ${activeTab === 'prestamos' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300`}>
+              Préstamos
+            </button>
           )}
         </div>
 
-        <div className="flex-1 md:ml-6">
-          <div className="mb-4">
-            <label className="block text-xl font-semibold mb-2 text-gray-700">Nombre:</label>
+        {activeTab === 'perfil' && (
+          <div>
             {editMode ? (
-              <input
-                type="text"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
-              />
+              <div>
+                <div className="mb-4">
+                  <label className="block text-xl font-semibold mb-2 text-gray-700">Nombre:</label>
+                  <input
+                    type="text"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-xl font-semibold mb-2 text-gray-700">Email:</label>
+                  <input
+                    type="text"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-xl font-semibold mb-2 text-gray-700">Fecha de Nacimiento:</label>
+                  <input
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-xl font-semibold mb-2 text-gray-700">Teléfono:</label>
+                  <input
+                    type="text"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                  />
+                </div>
+
+                {isEstu && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-xl font-semibold mb-2 text-gray-700">Programa de Formación:</label>
+                      <input
+                        type="text"
+                        value={tecnologo}
+                        onChange={(e) => setTecnologo(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-xl font-semibold mb-2 text-gray-700">Ficha:</label>
+                      <input
+                        type="text"
+                        value={ficha}
+                        onChange={(e) => setFicha(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="mb-4 flex justify-end">
+                  <button onClick={handleSave} className="bg-blue-500 text-white px-4 py-2 rounded-lg">Guardar</button>
+                </div>
+              </div>
             ) : (
-              <p className="text-xl text-gray-600">{nombre}</p>
+              <div>
+                {isEstu && (
+                  <>
+                    <div className="mb-4">
+                      <p className="text-xl font-semibold text-gray-700">Programa de Formación: {tecnologo}</p>
+                    </div>
+                    <div className="mb-4">
+                      <p className="text-xl font-semibold text-gray-700">Ficha: {ficha}</p>
+                    </div>
+                  </>
+                )}
+
+                <div className="mb-4">
+                  <p className="text-xl font-semibold text-gray-700">Fecha de Nacimiento: {fechaNacimiento}</p>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-xl font-semibold text-gray-700">Teléfono: {telefono}</p>
+                </div>
+
+                <div className="mb-4 flex justify-end">
+                  <button onClick={() => setEditMode(true)} className="bg-yellow-500 text-white px-4 py-2 rounded-lg">Editar</button>
+                </div>
+              </div>
             )}
           </div>
-
-          <div className="mb-4">
-            <label className="block text-xl font-semibold mb-2 text-gray-700">Nombre:</label>
-            {editMode ? (
-              <input
-                type="text"
-                value={email}
-                onChange={(e) => setNombre(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
-              />
-            ) : (
-              <p className="text-xl text-gray-600">{email}</p>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-xl font-semibold mb-2 text-gray-700">Fecha de Nacimiento:</label>
-            {editMode ? (
-              <input
-                type="date"
-                value={fechaNacimiento}
-                onChange={(e) => setFechaNacimiento(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
-              />
-            ) : (
-              <p className="text-xl text-gray-600">{fechaNacimiento}</p>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-xl font-semibold mb-2 text-gray-700">Teléfono:</label>
-            {editMode ? (
-              <input
-                type="text"
-                value={telefono}
-                onChange={(e) => setTelefono(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
-              />
-            ) : (
-              <p className="text-xl text-gray-600">{telefono}</p>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-xl font-semibold mb-2 text-gray-700">Tecnólogo:</label>
-            {editMode ? (
-              <input
-                type="text"
-                value={tecnologo}
-                onChange={(e) => setTecnologo(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
-              />
-            ) : (
-              <p className="text-xl text-gray-600">{tecnologo}</p>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-xl font-semibold mb-2 text-gray-700">Ficha:</label>
-            {editMode ? (
-              <input
-                type="text"
-                value={ficha}
-                onChange={(e) => setFicha(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
-              />
-            ) : (
-              <p className="text-xl text-gray-600">{ficha}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center mb-6">
-        {editMode ? (
-          <>
-            <button
-              onClick={handleSave}
-              className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-4 rounded mr-2"
-            >
-              Guardar
-            </button>
-            <button
-              onClick={() => setEditMode(false)}
-              className="bg-gray-500 hover:bg-gray-400 text-white font-bold py-2 px-4 rounded"
-            >
-              Cancelar
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={() => setEditMode(true)}
-            className="bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-4 rounded"
-          >
-            Editar
-          </button>
         )}
-      </div>
-
-      <h2 className="text-3xl font-bold mt-8 mb-4">Libros Prestados</h2>
-      {librosPrestados.length > 0 ? (
-        <ul className="space-y-4">
-          {librosPrestados.map((libro, index) => (
-            <li key={index} className="border border-gray-300 p-4 rounded-lg shadow-lg">
-              <h3 className="text-xl font-semibold">{libro.titulo}</h3>
-              <p>Fecha de Préstamo: {libro.fecha_prestamo}</p>
-              <p>Fecha de Devolución: {libro.fecha_devolucion}</p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-gray-600">No has prestado ningún libro.</p>
+       {(isEstu || isProf || isFunc) && activeTab === 'prestamos' && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">Mis Préstamos</h2>
+          {librosPrestados.length === 0 ? (
+            <p>No tienes préstamos activos.</p>
+          ) : (
+          <ul>
+            {librosPrestados.map((libro, index) => (
+              <li key={index} className="border-b border-gray-300 py-4">
+                <h3 className="text-xl font-semibold">{libro.titulo}</h3>
+                <p>Autor: {libro.autor}</p>
+                <p>Fecha de Préstamo: {libro.fecha_prestamo}</p>
+                <p>Estado: {libro.estado}</p>
+              </li>
+            ))}
+          </ul>
+         )}
+        </div>
       )}
+      </div>
     </div>
   );
 };

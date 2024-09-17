@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { signInWithEmailAndPassword } from 'firebase/auth'; // Importar desde firebase/auth
-import { auth } from '../lib/firebase'; // Asegúrate de ajustar el path según tu configuración
+import { auth } from '../../lib/firebase'; // Asegúrate de ajustar el path según tu configuración
 
 const Login = () => {
   const [email, setEmail] = useState('');

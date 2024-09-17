@@ -11,13 +11,13 @@ const Footer = () => {
             <h2 className="text-2xl font-bold mb-4">Contacto</h2>
             <ul>
               <li className="mb-2">
-                <a href="mailto:contacto@autobooks.com" className="hover:underline">
-                  contacto@autobooks.com
+                <a href="email:biblioteca.sena@misena.edu.co" className="hover:underline">
+                biblioteca.sena@misena.edu.co
                 </a>
               </li>
               <li className="mb-2">
-                <a href="tel:+1234567890" className="hover:underline">
-                  +123 456 7890
+                <a href="tel:3223775154" className="hover:underline">
+                322 377 5154
                 </a>
               </li>
             </ul>

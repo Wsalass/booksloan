@@ -60,14 +60,6 @@ const Header = () => {
               <Link href="/profile" className="block bg-white text-verde-claro px-5 py-2 rounded-full hover:bg-yellow-400 hover:text-white transition-all duration-300 shadow-md hover:shadow-lg">
                 Perfil
               </Link>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="bg-white text-verde-claro px-5 py-2 rounded-full hover:bg-yellow-400 hover:text-white transition-all duration-300 shadow-md hover:shadow-lg"
-                >
-                  Administración
-                </Link>
-              )}
               <button
                 onClick={handleLogout}
                 className="bg-red-500 text-white px-5 py-2 rounded-full hover:bg-red-400 transition-all duration-300 shadow-md hover:shadow-lg"

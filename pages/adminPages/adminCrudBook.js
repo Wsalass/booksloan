@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { toast } from 'react-toastify';
-import { db } from '../lib/firebase'; // Asegúrate de configurar Firebase correctamente
+import { db } from '../../lib/firebase'; // Asegúrate de configurar Firebase correctamente
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
-const Admin = () => {
+const AdminCrudBook = () => {
   const [libros, setLibros] = useState([]);
   const [autores, setAutores] = useState([]);
   const [generos, setGeneros] = useState([]);
@@ -397,4 +397,4 @@ const Admin = () => {
   );
 };
 
-export default Admin;
+export default AdminCrudBook;
