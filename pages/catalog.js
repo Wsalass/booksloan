@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import LibroCard from '../components/CardLibro';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { useAuth } from '../hooks/useAuth'; // Importa el hook useAuth
 
 const Catalog = () => {
+  const { userData } = useAuth(); // Accede a los datos del usuario
   const [libros, setLibros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -11,7 +15,6 @@ const Catalog = () => {
   const [generos, setGeneros] = useState([]);
   const [error, setError] = useState(null);
 
-  // Función para obtener géneros
   const fetchGeneros = async () => {
     try {
       const generosRef = collection(db, 'generos');
@@ -24,17 +27,16 @@ const Catalog = () => {
     } catch (error) {
       console.error('Error fetching genres:', error);
       setError('No se pudieron cargar los géneros. Inténtalo más tarde.');
+      toast.error('Error al cargar los géneros. Inténtalo más tarde.', { position: 'top-center' });
     }
   };
 
-  // Función para obtener libros
   const fetchLibros = async () => {
     try {
       setLoading(true);
       const librosRef = collection(db, 'libros');
       let librosQuery = query(librosRef, orderBy('titulo'));
 
-      // Filtro por término de búsqueda
       if (searchTerm) {
         librosQuery = query(
           librosRef,
@@ -44,7 +46,6 @@ const Catalog = () => {
         );
       }
 
-      // Filtro por género seleccionado
       if (selectedGenero) {
         librosQuery = query(
           librosRef,
@@ -62,42 +63,40 @@ const Catalog = () => {
       setLibros(librosData);
     } catch (error) {
       console.error('Error fetching books:', error);
-      setError('No se pudieron cargar los libros. Inténtalo más tarde.');
+      toast.error('Error al cargar los libros. Inténtalo más tarde.', { position: 'top-center' });
     } finally {
       setLoading(false);
     }
   };
 
-  // useEffect para cargar géneros al inicio
   useEffect(() => {
     fetchGeneros();
   }, []);
 
-  // useEffect para cargar libros cuando cambia el término de búsqueda o el género seleccionado
   useEffect(() => {
     fetchLibros();
   }, [searchTerm, selectedGenero]);
 
   return (
     <div className="bg-gradient-to-r from-gray-50 to-gray-100 min-h-screen">
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-8 text-center">Catálogo de Libros</h2>
+      <div className="mx-auto max-w-7xl px-6 py-20 sm:px-8 sm:py-24 lg:px-10">
+        <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 mb-12 text-center">Catálogo de Libros</h2>
 
-        <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-10">
-          <div className="relative w-full max-w-md">
+        <div className="flex flex-col sm:flex-row justify-center items-center space-y-6 sm:space-y-0 sm:space-x-6 mb-12">
+          <div className="relative w-full max-w-lg">
             <input
               type="text"
               placeholder="Buscar libros..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-stone-950 rounded-lg text-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-verde-claro focus:border-transparent transition-all duration-300 ease-in-out"
+              className="w-full px-5 py-3 border border-stone-950 rounded-lg text-lg shadow-md focus:outline-none focus:ring-2 focus:ring-verde-claro focus:border-transparent transition-all duration-300 ease-in-out"
             />
           </div>
 
           <select
             value={selectedGenero}
             onChange={(e) => setSelectedGenero(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-verde-claro focus:border-transparent transition-all duration-300 ease-in-out"
+            className="w-full max-w-xs px-5 py-3 border border-gray-300 rounded-lg text-lg shadow-md focus:outline-none focus:ring-2 focus:ring-verde-claro focus:border-transparent transition-all duration-300 ease-in-out"
           >
             <option value="">Todos los géneros</option>
             {generos.map((genero) => (
@@ -115,7 +114,7 @@ const Catalog = () => {
         ) : libros.length === 0 ? (
           <p className="text-center text-lg text-red-500">No hay libros disponibles en este género.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12">
             {libros.map((libro) => (
               <LibroCard libro={libro} key={libro.id} />
             ))}

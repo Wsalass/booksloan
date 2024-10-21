@@ -1,47 +1,62 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { db } from '../../../lib/firebase'; 
+import { db } from '../../../lib/firebase';
 import { doc, getDoc, addDoc, collection, updateDoc } from 'firebase/firestore';
-import { useAuth } from '../../../hooks/useAuth'; 
+import { useAuth } from '../../../hooks/useAuth';
+import { ToastContainer, toast } from 'react-toastify';
 
 const SolicitarPrestamo = () => {
   const [libro, setLibro] = useState(null);
   const [autores, setAutores] = useState([]);
   const [editorial, setEditorial] = useState('');
   const [cantidad, setCantidad] = useState(1);
-  const [maxCantidad, setMaxCantidad] = useState(3); 
+  const [maxCantidad, setMaxCantidad] = useState(3);
   const [loading, setLoading] = useState(true);
+  const [usuarioDb, setUsuarioDb] = useState(null);
   const { user } = useAuth(); 
   const router = useRouter();
-  const { id } = router.query; 
-
+  const { id } = router.query;
 
   const obtenerLimiteLibros = (rolId) => {
     switch (rolId) {
       case '0gXv7x0EctdgRrVh96B7': // Estudiante
+      case 'fNzerO5gAonx0c28MHfK': // Funcionario
         return 3;
       case '7qm4fox9AjtONPXh8YvR': // Profesor
         return 5;
-      case 'fNzerO5gAonx0c28MHfK': // Funcionario
-        return 3;
       default:
-        return 3; 
+        return 3;
+    }
+  };
+
+  const fetchUsuarioDb = async (uid) => {
+    try {
+      const usuarioRef = doc(db, 'usuarios', uid);
+      const usuarioSnapshot = await getDoc(usuarioRef);
+      if (usuarioSnapshot.exists()) {
+        setUsuarioDb(usuarioSnapshot.data());
+        const limite = obtenerLimiteLibros(usuarioSnapshot.data().rol_id);
+        setMaxCantidad(limite);
+      } else {
+        toast.error('No se encontraron datos del usuario en la base de datos.');
+      }
+    } catch (error) {
+      console.error('Error al cargar datos del usuario:', error);
+      toast.error('Hubo un problema al cargar los datos del usuario.');
     }
   };
 
   const fetchAutores = async (autorIds) => {
     try {
-      const autoresData = [];
-      for (const autorId of autorIds) {
+      const autoresData = await Promise.all(autorIds.map(async (autorId) => {
         const autorRef = doc(db, 'autores', autorId);
         const autorSnapshot = await getDoc(autorRef);
-        if (autorSnapshot.exists()) {
-          autoresData.push(autorSnapshot.data().nombre || 'Desconocido'); 
-        }
-      }
-      setAutores(autoresData);
+        return autorSnapshot.exists() ? autorSnapshot.data().nombre || 'Desconocido' : null;
+      }));
+      setAutores(autoresData.filter(Boolean));
     } catch (error) {
       console.error('Error al obtener los autores:', error);
+      toast.error('No se pudieron cargar los autores. Intenta nuevamente.');
     }
   };
 
@@ -49,11 +64,10 @@ const SolicitarPrestamo = () => {
     try {
       const editorialRef = doc(db, 'editoriales', editorialId);
       const editorialSnapshot = await getDoc(editorialRef);
-      if (editorialSnapshot.exists()) {
-        setEditorial(editorialSnapshot.data().nombre || 'Desconocida'); 
-      }
+      setEditorial(editorialSnapshot.exists() ? editorialSnapshot.data().nombre || 'Desconocida' : 'Desconocida');
     } catch (error) {
       console.error('Error al obtener la editorial:', error);
+      toast.error('No se pudo cargar la editorial. Intenta nuevamente.');
     }
   };
 
@@ -67,20 +81,17 @@ const SolicitarPrestamo = () => {
         if (libroSnapshot.exists()) {
           const libroData = libroSnapshot.data();
           setLibro(libroData);
-
-          if (libroData.autor_id && libroData.autor_id.length > 0) {
-            await fetchAutores(libroData.autor_id);
-          }
-
-          if (libroData.editorial_id) {
-            await fetchEditorial(libroData.editorial_id);
-          }
+          await Promise.all([
+            libroData.autor_id && fetchAutores(libroData.autor_id),
+            libroData.editorial_id && fetchEditorial(libroData.editorial_id),
+          ]);
         } else {
-          console.error('El libro no existe');
-          router.push('/404'); 
+          toast.error('El libro no existe. Redirigiendo...');
+          router.push('/404');
         }
       } catch (error) {
         console.error('Error al obtener detalles del libro:', error);
+        toast.error('Error al cargar la información del libro. Intenta nuevamente.');
       } finally {
         setLoading(false);
       }
@@ -90,21 +101,28 @@ const SolicitarPrestamo = () => {
   }, [id, router]);
 
   useEffect(() => {
-    if (user) {
-      const limite = obtenerLimiteLibros(user.rol_id); 
-      setMaxCantidad(limite);
+    if (user && user.uid) {
+      fetchUsuarioDb(user.uid);
     }
   }, [user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!user || !libro) return;
+    if (!usuarioDb) {
+      toast.error('Debes estar logueado para solicitar un préstamo.');
+      return;
+    }
+
+    if (!libro) {
+      toast.error('No se encontró el libro. Intenta más tarde.');
+      return;
+    }
 
     const cantidadDisponible = libro.cantidad || 0;
 
     if (cantidad > cantidadDisponible) {
-      alert('La cantidad solicitada excede la cantidad disponible.');
+      toast.error('La cantidad solicitada excede la cantidad disponible.');
       return;
     }
 
@@ -113,36 +131,40 @@ const SolicitarPrestamo = () => {
 
     const nuevoPrestamo = {
       libroId: id,
-      usuarioId: user.uid,
+      usuarioId: user.uid, 
       cantidadSolicitada: cantidad,
-      estado: 'pendiente', 
+      estado: 'pendiente',
       fechaSolicitud: new Date(),
-      fechaDevolucion: fechaDevolucion.toISOString().split('T')[0], 
+      fechaDevolucion: fechaDevolucion.toISOString().split('T')[0],
       usuario: {
-        nombre: user.nombre || 'Desconocido', 
-        email: user.email || 'No proporcionado', 
-        telefono: user.telefono || 'No proporcionado', 
+        nombre: usuarioDb.nombre || 'Desconocido',
+        email: usuarioDb.email || 'No proporcionado',
+        telefono: usuarioDb.telefono || 'No proporcionado',
       },
       libro: {
-        titulo: libro.titulo || 'Título desconocido', 
+        titulo: libro.titulo || 'Título desconocido',
         autores: autores.length > 0 ? autores : ['Desconocido'],
         editorial: editorial || 'Desconocida',
-        cantidadDisponible: cantidadDisponible 
-      }
+        cantidadDisponible: cantidadDisponible,
+      },
     };
 
     try {
-
       await addDoc(collection(db, 'prestamos'), nuevoPrestamo);
-
-      const libroRef = doc(db, 'libros', id);
-      await updateDoc(libroRef, { cantidad: cantidadDisponible - cantidad });
-
-      alert('Solicitud de préstamo enviada. Espera la autorización del administrador.');
-      router.push(`/libro/${id}`); 
+      await updateDoc(doc(db, 'libros', id), { cantidad: cantidadDisponible - cantidad });
+      toast.success('Solicitud de préstamo enviada. Espera la autorización del administrador.');
+      router.push(`/libro/${id}`);
     } catch (error) {
       console.error('Error al crear el préstamo:', error);
-      alert('Hubo un error al solicitar el préstamo. Inténtalo nuevamente.');
+      let errorMessage = 'Hubo un error al solicitar el préstamo. Inténtalo nuevamente.';
+      if (error.code === 'permission-denied') {
+        errorMessage = 'No tienes permiso para realizar esta acción.';
+      } else if (error.code === 'not-found') {
+        errorMessage = 'El libro no fue encontrado. Por favor, verifica la información.';
+      } else if (error.code === 'unavailable') {
+        errorMessage = 'El servicio no está disponible en este momento. Intenta más tarde.';
+      }
+      toast.error(errorMessage);
     }
   };
 
@@ -162,38 +184,45 @@ const SolicitarPrestamo = () => {
         <p className="text-xl">Editorial: {editorial || 'Desconocida'}</p>
       </div>
 
-      {/* Mostrar información del usuario */}
-      {user && (
+      {/* Mostrar información del usuario si está logueado */}
+      {usuarioDb ? (
         <div className="mb-6">
           <h3 className="text-2xl font-semibold mb-2">Información del usuario</h3>
-          <p className="text-xl">Nombre: {user.nombre || 'Desconocido'}</p>
-          <p className="text-xl">Correo: {user.email || 'No proporcionado'}</p>
-          <p className="text-xl">Teléfono: {user.telefono || 'No proporcionado'}</p>
+          <p className="text-xl">Nombre: {usuarioDb.nombre || 'Desconocido'}</p>
+          <p className="text-xl">Correo: {usuarioDb.email || 'No proporcionado'}</p>
+          <p className="text-xl">Teléfono: {usuarioDb.telefono || 'No proporcionado'}</p>
         </div>
+      ) : (
+        <p className="text-xl text-red-600">No estás logueado. Por favor, inicia sesión para solicitar un préstamo.</p>
       )}
 
       {/* Formulario para solicitar el préstamo */}
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
-          <label className="block text-xl font-semibold mb-2" htmlFor="cantidad">
-            Cantidad de libros a solicitar (Máximo: {maxCantidad}):
+          <label htmlFor="cantidad" className="block text-xl font-semibold mb-2">
+            Cantidad a solicitar (Máximo {maxCantidad})
           </label>
           <input
             type="number"
             id="cantidad"
-            name="cantidad"
-            className="border border-gray-300 p-2 w-full"
-            min="1"
-            max={Math.min(libro.cantidad, maxCantidad)} 
             value={cantidad}
-            onChange={(e) => setCantidad(Number(e.target.value))} 
+            min="1"
+            max={maxCantidad}
+            onChange={(e) => setCantidad(parseInt(e.target.value))}
+            className="border border-gray-300 px-3 py-2 rounded w-full"
             required
           />
         </div>
-        <button type="submit" className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-4 rounded">
-          Enviar Solicitud
+
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none"
+        >
+          Solicitar Préstamo
         </button>
       </form>
+
+      <ToastContainer />
     </div>
   );
 };

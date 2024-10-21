@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
-import { db } from '../../lib/firebase'; // Ajusta la ruta
+import { db } from '../../lib/firebase';
 import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { useAuth } from '../../hooks/useAuth'; // Obtener la información del usuario
+import { useAuth } from '../../hooks/useAuth';
+import ReactPaginate from 'react-paginate';
+import { toast, ToastContainer } from 'react-toastify'; // Importa Toastify
+import 'react-toastify/dist/ReactToastify.css'; // Importa el CSS de Toastify
 
 const GestionarPrestamos = () => {
   const [prestamos, setPrestamos] = useState([]);
   const [filteredPrestamos, setFilteredPrestamos] = useState([]);
-  const [filter, setFilter] = useState('pendiente'); // Filtro de estado
+  const [filter, setFilter] = useState('pendiente');
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth(); // Obtener la información del usuario desde el hook
+  const [errorMessage, setErrorMessage] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [itemsPerPage] = useState(5); 
+  const { user, userData } = useAuth(); 
 
   useEffect(() => {
     const fetchPrestamos = async () => {
@@ -17,36 +23,50 @@ const GestionarPrestamos = () => {
         const prestamosSnapshot = await getDocs(prestamosRef);
         const prestamosList = prestamosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPrestamos(prestamosList);
-        setFilteredPrestamos(prestamosList.filter(p => p.estado === filter)); // Filtrar por estado
       } catch (error) {
-        console.error('Error al obtener las solicitudes de préstamo:', error);
+        setErrorMessage('Error al obtener las solicitudes de préstamo.');
+        toast.error('Error al obtener las solicitudes de préstamo.'); // Usa Toastify
+        console.error('Error:', error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchPrestamos();
-  }, [filter]); // Recargar cuando el filtro cambie
+  }, []);
+
+  useEffect(() => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+    setFilteredPrestamos(prestamos.filter(p => {
+      const fechaDevolucion = new Date(p.fechaDevolucion);
+      return p.estado === filter || (filter === 'finalizado' && fechaDevolucion < thirtyDaysAgo);
+    }));
+  }, [prestamos, filter]);
 
   const handleDecision = async (id, decision) => {
     try {
       const prestamoRef = doc(db, 'prestamos', id);
       await updateDoc(prestamoRef, { estado: decision });
-      alert(`Solicitud de préstamo ${decision}.`);
-      setPrestamos(prestamos.filter(prestamo => prestamo.id !== id));
+      toast.success(`Solicitud de préstamo ${decision}.`); // Usa Toastify
+      setPrestamos(prev => prev.map(prestamo => prestamo.id === id ? { ...prestamo, estado: decision } : prestamo));
     } catch (error) {
-      console.error(`Error al ${decision} la solicitud de préstamo:`, error);
-      alert(`Hubo un error al ${decision} la solicitud de préstamo.`);
+      setErrorMessage(`Error al ${decision} la solicitud de préstamo.`);
+      toast.error(`Error al ${decision} la solicitud de préstamo.`); // Usa Toastify
+      console.error('Error:', error);
     }
   };
 
   const handleDelete = async (id) => {
     try {
       await deleteDoc(doc(db, 'prestamos', id));
-      alert('Préstamo rechazado eliminado.');
-      setPrestamos(prestamos.filter(prestamo => prestamo.id !== id));
+      toast.success('Préstamo rechazado eliminado.'); // Usa Toastify
+      setPrestamos(prev => prev.filter(prestamo => prestamo.id !== id));
     } catch (error) {
-      console.error('Error al eliminar el préstamo:', error);
+      setErrorMessage('Error al eliminar el préstamo.');
+      toast.error('Error al eliminar el préstamo.'); // Usa Toastify
+      console.error('Error:', error);
     }
   };
 
@@ -55,16 +75,26 @@ const GestionarPrestamos = () => {
     const fechaDevolucionDate = new Date(fechaDevolucion);
     const diferenciaEnTiempo = fechaDevolucionDate.getTime() - hoy.getTime();
     const diferenciaEnDias = Math.ceil(diferenciaEnTiempo / (1000 * 3600 * 24));
-    return diferenciaEnDias > 0 ? `${diferenciaEnDias} días restantes` : 'Fecha de devolución vencida';
+    return diferenciaEnDias > 0 ? `${diferenciaEnDias} días restantes` : 'Fecha de devolución finalizada';
   };
 
+  const pageCount = Math.ceil(filteredPrestamos.length / itemsPerPage);
+  const handlePageClick = ({ selected }) => {
+    setCurrentPage(selected);
+  };
+
+  const startIndex = currentPage * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPrestamos = filteredPrestamos.slice(startIndex, endIndex);
+
   if (loading) return <p className="text-center">Cargando...</p>;
+  if (errorMessage) return <p className="text-red-500 text-center">{errorMessage}</p>;
 
   return (
     <div className="container mx-auto px-4 py-6">
+      <ToastContainer /> {/* Agrega el contenedor de Toastify */}
       <h1 className="text-4xl font-bold mb-6">Gestión de Préstamos</h1>
 
-      {/* Filtro de estado */}
       <div className="mb-4">
         <label htmlFor="estado" className="mr-2">Filtrar por estado:</label>
         <select
@@ -76,6 +106,7 @@ const GestionarPrestamos = () => {
           <option value="pendiente">Pendiente</option>
           <option value="aceptado">Aceptado</option>
           <option value="rechazado">Rechazado</option>
+          <option value="finalizado">Finalizados</option>
         </select>
       </div>
 
@@ -92,10 +123,12 @@ const GestionarPrestamos = () => {
           </tr>
         </thead>
         <tbody>
-          {filteredPrestamos.map((prestamo) => (
+          {currentPrestamos.map((prestamo) => (
             <tr key={prestamo.id}>
               <td className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{prestamo.id}</td>
-              <td className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{prestamo.usuario.nombre}</td>
+              <td className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {prestamo.usuario?.nombre || 'Usuario no disponible'}
+              </td>
               <td className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{prestamo.libro.titulo}</td>
               <td className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{prestamo.cantidadSolicitada}</td>
               <td className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{prestamo.estado}</td>
@@ -132,6 +165,25 @@ const GestionarPrestamos = () => {
           ))}
         </tbody>
       </table>
+
+      {/* Paginación */}
+      <ReactPaginate
+        previousLabel={'← Anterior'}
+        nextLabel={'Siguiente →'}
+        breakLabel={'...'}
+        pageCount={pageCount}
+        marginPagesDisplayed={2}
+        pageRangeDisplayed={5}
+        onPageChange={handlePageClick}
+        containerClassName={'pagination'}
+        pageClassName={'page-item'}
+        pageLinkClassName={'page-link'}
+        previousClassName={'page-item'}
+        previousLinkClassName={'page-link'}
+        nextClassName={'page-item'}
+        nextLinkClassName={'page-link'}
+        activeClassName={'active'}
+      />
     </div>
   );
 };

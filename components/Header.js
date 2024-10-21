@@ -28,7 +28,7 @@ const Header = () => {
       <div className="flex justify-between items-center  mx-auto">
         <div className="text-2xl font-extrabold tracking-wide">
           <Link href="/" className="hover:text-white transition-colors duration-300">
-            Autobooks
+           BookLoan
           </Link>
         </div>
 

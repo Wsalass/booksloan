@@ -42,7 +42,7 @@ const Footer = () => {
 
         {/* Información adicional */}
         <div className="mt-8 border-t border-gray-100 pt-4">
-          <p className="text-center text-sm">&copy; {new Date().getFullYear()} Autobooks. Todos los derechos reservados.</p>
+          <p className="text-center text-sm">&copy; {new Date().getFullYear()} BookLoan. Todos los derechos reservados.</p>
         </div>
       </div>
     </footer>

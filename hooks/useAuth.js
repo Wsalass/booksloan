@@ -7,12 +7,13 @@ import { doc, getDoc } from 'firebase/firestore';
 export const useAuth = () => {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
-  const [userData, setUserData] = useState(null); // Nuevo estado para almacenar los datos completos del usuario
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true); // Estado de carga
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      setLoading(true); // Iniciar carga
       if (authUser) {
-        // Obtener el documento de usuario desde la colección 'usuarios'
         const userDocRef = doc(db, 'usuarios', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
@@ -20,9 +21,8 @@ export const useAuth = () => {
           const userInfo = userDoc.data();
           setUser(authUser);
           setRole(userInfo.rol_id);
-          setUserData(userInfo); // Guardar la información completa del usuario
+          setUserData(userInfo);
         } else {
-          // Maneja el caso donde el documento del usuario no existe
           setUser(null);
           setRole(null);
           setUserData(null);
@@ -32,6 +32,7 @@ export const useAuth = () => {
         setRole(null);
         setUserData(null);
       }
+      setLoading(false); // Finalizar carga
     });
 
     return () => unsubscribe();
@@ -45,5 +46,5 @@ export const useAuth = () => {
     }
   };
 
-  return { user, role, userData, logout }; // Retornar también los datos completos del usuario
+  return { user, role, userData, loading, logout }; // Retornar estado de carga
 };

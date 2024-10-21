@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where, getDoc, doc } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { db } from '../lib/firebase';
 import LibroCard from '../components/CardLibro';
 import { useAuth } from '../hooks/useAuth';
+import { toast } from 'react-toastify';
 
-const WelcomePage = (uid) => {
+const WelcomePage = () => {
   const { user, role, userData } = useAuth();
   const [libros, setLibros] = useState([]);
   const [newlyAddedBooks, setNewlyAddedBooks] = useState([]);
@@ -19,7 +20,6 @@ const WelcomePage = (uid) => {
   useEffect(() => {
     const fetchLibrosAndEditorials = async () => {
       try {
-        // Obtener todos los libros
         const librosRef = collection(db, 'libros');
         const librosSnapshot = await getDocs(librosRef);
         const librosData = librosSnapshot.docs.map(doc => ({
@@ -28,16 +28,15 @@ const WelcomePage = (uid) => {
         }));
         setLibros(librosData);
 
-        // Obtener libros recién agregados
         const newBooksQuery = query(librosRef, orderBy('created_at', 'desc'), limit(3));
         const newBooksSnapshot = await getDocs(newBooksQuery);
         const newlyAddedBooks = newBooksSnapshot.docs.map(doc => ({
           ...doc.data(),
-          id: doc.id
+          id: doc.id,
         }));
         setNewlyAddedBooks(newlyAddedBooks);
 
-        // Obtener todas las editoriales
+        // Obtener editoriales
         const editorialsRef = collection(db, 'editoriales');
         const editorialsSnapshot = await getDocs(editorialsRef);
         const editorialsData = editorialsSnapshot.docs.reduce((acc, doc) => {
@@ -45,10 +44,9 @@ const WelcomePage = (uid) => {
           return acc;
         }, {});
 
-        // Filtrar las editoriales que tienen al menos un libro
         const booksByEditorial = {};
         librosData.forEach(libro => {
-          const editorialId = libro.editorial_id; // Ajuste: `editorial_id`
+          const editorialId = libro.editorial_id;
           if (editorialsData[editorialId]) {
             if (!booksByEditorial[editorialId]) {
               booksByEditorial[editorialId] = [];
@@ -57,7 +55,6 @@ const WelcomePage = (uid) => {
           }
         });
 
-        // Actualizar el estado con las editoriales que tienen libros
         const filteredEditorials = Object.keys(editorialsData).reduce((acc, editorialId) => {
           if (booksByEditorial[editorialId]) {
             acc[editorialId] = editorialsData[editorialId];
@@ -68,7 +65,8 @@ const WelcomePage = (uid) => {
         setEditorials(filteredEditorials);
         setBooksByEditorial(booksByEditorial);
       } catch (error) {
-        console.error("Error al obtener libros o editoriales: ", error);
+        console.error('Error al obtener libros o editoriales: ', error);
+        toast.error('Error al obtener libros o editoriales.');
       }
     };
 
@@ -85,20 +83,20 @@ const WelcomePage = (uid) => {
         const loanSnapshot = await getDocs(loanQuery);
 
         const loanedBooks = await Promise.all(
-          loanSnapshot.docs.map(async (doc) => {
-            const prestamoData = doc.data();
-            const libroRef = doc(db, 'libros', prestamoData.libro.libroId);
+          loanSnapshot.docs.map(async (loanDoc) => {
+            const prestamoData = loanDoc.data();
+            const libroRef = doc(db, 'libros', prestamoData.libroId); // Corrección en la referencia del libro
             const libroSnapshot = await getDoc(libroRef);
 
             if (!libroSnapshot.exists()) {
-              console.error(`El libro con ID ${prestamoData.libro.libroId} no existe`);
+              console.error(`El libro con ID ${prestamoData.libroId} no existe`);
               return null;
             }
 
             return {
               ...libroSnapshot.data(),
               id: libroSnapshot.id,
-              prestamoId: doc.id,
+              prestamoId: loanDoc.id,
               cantidadSolicitada: prestamoData.cantidadSolicitada,
               fechaDevolucion: new Date(prestamoData.fechaDevolucion),
               estado: prestamoData.estado,
@@ -106,9 +104,10 @@ const WelcomePage = (uid) => {
           })
         );
 
-        setUserLoanedBooks(loanedBooks.filter(book => book !== null));
+        setUserLoanedBooks(loanedBooks.filter((book) => book !== null));
       } catch (error) {
-        console.error("Error obteniendo libros en préstamo: ", error);
+        console.error('Error obteniendo libros en préstamo: ', error);
+        toast.error('Error obteniendo libros en préstamo.');
       } finally {
         setLoading(false);
       }
@@ -118,18 +117,6 @@ const WelcomePage = (uid) => {
       fetchUserLoanedBooks();
     }
   }, [user]);
-
-  const fetchPublicBooks = async () => {
-    try {
-      const booksRef = collection(db, 'libros');
-      const newBooksQuery = query(booksRef, orderBy('created_at', 'desc'), limit(3));
-      const newBooksSnapshot = await getDocs(newBooksQuery);
-      const newlyAddedBooks = newBooksSnapshot.docs.map(doc => doc.data());
-      setNewlyAddedBooks(newlyAddedBooks);
-    } catch (error) {
-      console.error('Error obteniendo libros públicos: ', error);
-    }
-  };
 
   useEffect(() => {
     if (libros.length > 0) {
@@ -147,36 +134,38 @@ const WelcomePage = (uid) => {
       {isAdmin ? (
         <div className="w-full max-w-4xl mb-8 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">¡Hola Administrador, {userData?.nombre || 'Usuario'}!</h1>
-          <p className="text-lg md:text-xl text-gray-600 mb-6 text-center">Bienvenido de nuevo a Autobooks</p>
+          <p className="text-lg md:text-xl text-gray-600 mb-6">Bienvenido de nuevo a BookLoan</p>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">Panel de Administrador</h1>
-          <p className="text-lg md:text-xl text-gray-600 mb-6 text-center">Aquí puedes gestionar los libros, editoriales y usuarios.</p>
-          <button
-            onClick={() => router.push('/adminPages/adminCrudBook')}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Gestionar Libros
-          </button>
-          <button
-            onClick={() => router.push('/adminPages/adminUser')}
-            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors mt-4"
-          >
-            Gestionar Usuarios
-          </button>
-          <button
-            onClick={() => router.push('/adminPages/adminLoan')}
-            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors mt-4"
-          >
-            Gestionar prestamos
-          </button>
+          <p className="text-lg md:text-xl text-gray-600 mb-6">Aquí puedes gestionar los libros, editoriales y usuarios.</p>
+          <div className="flex flex-col items-center">
+            <button
+              onClick={() => router.push('/adminPages/adminCrudBook')}
+              className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors mb-4"
+            >
+              Gestionar Libros
+            </button>
+            <button
+              onClick={() => router.push('/adminPages/adminUser')}
+              className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-colors mb-4"
+            >
+              Gestionar Usuarios
+            </button>
+            <button
+              onClick={() => router.push('/adminPages/adminLoan')}
+              className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-colors mb-4"
+            >
+              Gestionar préstamos
+            </button>
+          </div>
         </div>
       ) : (
         <>
           {!user ? (
             <>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800 text-center">Bienvenido a Autobooks</h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800 text-center">Bienvenido a BookLoan</h1>
               <div className="w-full max-w-4xl mb-8 text-center m-10">
-                <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Libros recién agregados a nuestro catálogo</h2>
-                <p className="text-lg md:text-xl text-gray-600 mb-6 text-center">Descubre los últimos títulos que han llegado a nuestra colección. En esta sección, encontrarás los libros más recientes que hemos añadido, cada uno con su propia historia y encanto. Mantente al tanto de las novedades.</p>
+                <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4">Libros recién agregados a nuestro catálogo</h2>
+                <p className="text-lg md:text-xl text-gray-600 mb-6">Descubre los últimos títulos que han llegado a nuestra colección. Mantente al tanto de las novedades.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {newlyAddedBooks.map((libro) => (<LibroCard key={libro.id} libro={libro} />))}
                 </div>
@@ -190,11 +179,16 @@ const WelcomePage = (uid) => {
                       onClick={() => goToEditorialBooks(editorialId)}
                       className="relative bg-white border border-gray-300 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-transform transform hover:scale-105"
                     >
-                      <img
-                        src={editorials[editorialId]?.imagen || '/default-editorial.png'}
-                        alt={editorials[editorialId]?.nombre}
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="flex flex-col items-center p-4">
+                        {editorials[editorialId].imagen && (
+                          <img
+                            src={editorials[editorialId].imagen}
+                            alt={editorials[editorialId].nombre}
+                            className="w-full h-32 object-cover mb-2"
+                          />
+                        )}
+                        <h3 className="text-lg font-semibold text-gray-800">{editorials[editorialId].nombre}</h3>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -202,31 +196,30 @@ const WelcomePage = (uid) => {
             </>
           ) : (
             <>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800 text-center">Hola {userData?.nombre || 'Usuario'}</h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800 text-center">¡Hola, {userData?.nombre || 'Usuario'}!</h1>
               <div className="w-full max-w-4xl mb-8 text-center m-10">
-              <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Tus libros en préstamo</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
-              {userLoanedBooks.length > 0 ? (
-                userLoanedBooks.map((libro) => (<LibroCard key={libro.id} libro={libro} />))
-              ) : (
-                <p className="text-lg md:text-xl text-gray-600 text-center">No tienes libros en préstamo.</p>
-              )}
-            </div>
+                <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4">Tus libros en préstamo</h2>
+                {loading ? (
+                  <p>Cargando libros en préstamo...</p>
+                ) : userLoanedBooks.length > 0 ? (
+                  <ul className="space-y-4">
+                    {userLoanedBooks.map((libro) => (
+                      <li key={libro.prestamoId} className="p-4 border border-gray-300 rounded-lg flex justify-between items-center">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-lg text-gray-800">{libro.titulo}</span>
+                          <span className="text-sm text-gray-600">Fecha de devolución: {libro.fechaDevolucion.toLocaleDateString()}</span>
+                          <span className="text-sm text-gray-600">Estado: {libro.estado}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No tienes libros en préstamo actualmente.</p>
+                )}
               </div>
-              <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4 text-center">Mira nustras recomendaciones</h2>
-              {recommendedBook && (
-                <div className="flex flex-col md:flex-row items-center justify-center mb-8 bg-white shadow-md rounded-lg p-6 w-full max-w-5xl">
-                  <img src={recommendedBook.imagen} alt={recommendedBook.titulo} className="w-1/2 h-auto object-cover rounded-lg mb-4 md:mb-0 md:mr-6"/>
-                  <div className="flex flex-col justify-between">
-                    <h2 className="text-2xl font-bold mb-2">{recommendedBook.titulo}</h2>
-                    <p className="text-gray-700 mb-4">{recommendedBook.resumen}</p>
-                    <p className="text-sm text-gray-600">Editorial: {editorials[recommendedBook.editorial_id]?.nombre || 'Desconocido'}</p>
-                  </div>
-                </div>
-              )}
               <div className="w-full max-w-4xl mb-8 text-center m-10">
                 <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-4">Libros recién agregados a nuestro catálogo</h2>
-                <p className="text-lg md:text-xl text-gray-600 mb-6">Descubre los últimos títulos que han llegado a nuestra colección. En esta sección, encontrarás los libros más recientes que hemos añadido, cada uno con su propia historia y encanto. Mantente al tanto de las novedades.</p>
+                <p className="text-lg md:text-xl text-gray-600 mb-6">Descubre los últimos títulos que han llegado a nuestra colección. Mantente al tanto de las novedades.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {newlyAddedBooks.map((libro) => (<LibroCard key={libro.id} libro={libro} />))}
                 </div>
@@ -240,11 +233,16 @@ const WelcomePage = (uid) => {
                       onClick={() => goToEditorialBooks(editorialId)}
                       className="relative bg-white border border-gray-300 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-transform transform hover:scale-105"
                     >
-                      <img
-                        src={editorials[editorialId]?.imagen || '/default-editorial.png'}
-                        alt={editorials[editorialId]?.nombre}
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="flex flex-col items-center p-4">
+                        {editorials[editorialId].imagen && (
+                          <img
+                            src={editorials[editorialId].imagen}
+                            alt={editorials[editorialId].nombre}
+                            className="w-full h-32 object-cover mb-2"
+                          />
+                        )}
+                        <h3 className="text-lg font-semibold text-gray-800">{editorials[editorialId].nombre}</h3>
+                      </div>
                     </button>
                   ))}
                 </div>

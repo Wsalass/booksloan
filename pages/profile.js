@@ -1,9 +1,10 @@
 // pages/profile.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '../hooks/useAuth'; // Asegúrate de que la ruta sea correcta
+import { useAuth } from '../hooks/useAuth'; 
 import { db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { toast } from 'react-toastify'; // Importa react-toastify
 
 const Profile = () => {
   const { user, role, authLoading } = useAuth(); 
@@ -82,8 +83,11 @@ const Profile = () => {
         });
         setUserData({ ...userData, nombre, fecha_nacimiento, telefono, foto_perfil: fotoPreview || fotoPerfil, ficha, tecnologo });
         setEditMode(false);
-      } catch (error) {
         console.error('Error updating user data:', error);
+        toast.error('Error al actualizar el perfil.'); 
+        
+      } catch{
+        toast.success('Perfil actualizado exitosamente!'); 
       }
     }
   };
@@ -96,7 +100,7 @@ const Profile = () => {
   const isFunc = role === 'fNzerO5gAonx0c28MHfK';
   return (
     <div className="container mx-auto px-4 py-6">
-      <header className="bg-lime-500 text-white py-6 px-4">
+      <header className="bg-lime-500 text-white py-6 px-4 rounded-lg shadow-md mb-6">
         <div className="flex flex-col items-center">
           <div className="relative w-32 h-32 mb-4">
             <img
@@ -121,12 +125,12 @@ const Profile = () => {
         <div className="flex justify-center mb-4">
           <button
             onClick={() => setActiveTab('perfil')}
-            className={`px-4 py-2 rounded-t-lg ${activeTab === 'perfil' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300`}
+            className={`px-6 py-3 rounded-t-lg ${activeTab === 'perfil' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300 shadow-md`}
           >
             Información de Perfil
           </button>
           {(isEstu || isProf || isFunc) && (
-            <button onClick={() => setActiveTab('prestamos')}className={`px-4 py-2 rounded-t-lg ${activeTab === 'prestamos' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300`}>
+            <button onClick={() => setActiveTab('prestamos')} className={`px-6 py-3 rounded-t-lg ${activeTab === 'prestamos' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300 shadow-md`}>
               Préstamos
             </button>
           )}
@@ -142,7 +146,7 @@ const Profile = () => {
                     type="text"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-full"
                   />
                 </div>
 
@@ -152,7 +156,7 @@ const Profile = () => {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-full"
                   />
                 </div>
 
@@ -162,7 +166,7 @@ const Profile = () => {
                     type="date"
                     value={fechaNacimiento}
                     onChange={(e) => setFechaNacimiento(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-full"
                   />
                 </div>
 
@@ -172,7 +176,7 @@ const Profile = () => {
                     type="text"
                     value={telefono}
                     onChange={(e) => setTelefono(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-full"
                   />
                 </div>
 
@@ -184,72 +188,71 @@ const Profile = () => {
                         type="text"
                         value={tecnologo}
                         onChange={(e) => setTecnologo(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                        className="border border-gray-300 rounded-lg px-4 py-2 w-full"
                       />
                     </div>
+
                     <div className="mb-4">
                       <label className="block text-xl font-semibold mb-2 text-gray-700">Ficha:</label>
                       <input
                         type="text"
                         value={ficha}
                         onChange={(e) => setFicha(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+                        className="border border-gray-300 rounded-lg px-4 py-2 w-full"
                       />
                     </div>
                   </>
                 )}
 
-                <div className="mb-4 flex justify-end">
-                  <button onClick={handleSave} className="bg-blue-500 text-white px-4 py-2 rounded-lg">Guardar</button>
-                </div>
+                <button
+                  onClick={handleSave}
+                  className="bg-lime-500 text-white px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
+                >
+                  Guardar
+                </button>
+                <button
+                  onClick={() => setEditMode(false)}
+                  className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg shadow-md ml-2 transition-colors duration-300"
+                >
+                  Cancelar
+                </button>
               </div>
             ) : (
               <div>
+                <p className="text-xl font-semibold">Email: {email}</p>
+                <p className="text-xl font-semibold">Fecha de Nacimiento: {fechaNacimiento}</p>
+                <p className="text-xl font-semibold">Teléfono: {telefono}</p>
                 {isEstu && (
                   <>
-                    <div className="mb-4">
-                      <p className="text-xl font-semibold text-gray-700">Programa de Formación: {tecnologo}</p>
-                    </div>
-                    <div className="mb-4">
-                      <p className="text-xl font-semibold text-gray-700">Ficha: {ficha}</p>
-                    </div>
+                    <p className="text-xl font-semibold">Programa de Formación: {tecnologo}</p>
+                    <p className="text-xl font-semibold">Ficha: {ficha}</p>
                   </>
                 )}
-
-                <div className="mb-4">
-                  <p className="text-xl font-semibold text-gray-700">Fecha de Nacimiento: {fechaNacimiento}</p>
-                </div>
-
-                <div className="mb-4">
-                  <p className="text-xl font-semibold text-gray-700">Teléfono: {telefono}</p>
-                </div>
-
-                <div className="mb-4 flex justify-end">
-                  <button onClick={() => setEditMode(true)} className="bg-yellow-500 text-white px-4 py-2 rounded-lg">Editar</button>
-                </div>
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="bg-lime-500 text-white px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
+                >
+                  Editar Perfil
+                </button>
               </div>
             )}
           </div>
         )}
-       {(isEstu || isProf || isFunc) && activeTab === 'prestamos' && (
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Mis Préstamos</h2>
-          {librosPrestados.length === 0 ? (
-            <p>No tienes préstamos activos.</p>
-          ) : (
-          <ul>
-            {librosPrestados.map((libro, index) => (
-              <li key={index} className="border-b border-gray-300 py-4">
-                <h3 className="text-xl font-semibold">{libro.titulo}</h3>
-                <p>Autor: {libro.autor}</p>
-                <p>Fecha de Préstamo: {libro.fecha_prestamo}</p>
-                <p>Estado: {libro.estado}</p>
-              </li>
-            ))}
-          </ul>
-         )}
-        </div>
-      )}
+
+        {activeTab === 'prestamos' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Libros Prestados</h2>
+            {librosPrestados.length > 0 ? (
+              <ul className="list-disc list-inside">
+                {librosPrestados.map((libro, index) => (
+                  <li key={index} className="mb-2">{libro.titulo || 'Título no disponible'}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No hay libros prestados.</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

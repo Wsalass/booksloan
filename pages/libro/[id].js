@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { useAuth } from '../../hooks/useAuth'; // Importar el hook de autenticación
 
 const LibroDetalle = () => {
+  const { user, userData } = useAuth(); // Obtener el usuario y los datos del usuario
   const [libro, setLibro] = useState(null);
   const [autores, setAutores] = useState([]);
   const [editorial, setEditorial] = useState('');
@@ -55,52 +59,59 @@ const LibroDetalle = () => {
             setGeneros(['No especificado']);
           }
         } else {
-          console.error('El libro no existe');
-          router.push('/404'); // Redirige a una página 404 si el libro no se encuentra
+          toast.error('El libro no existe');
         }
       } catch (error) {
+        toast.error('Error al cargar el libro');
         console.error('Error fetching book details:', error);
-        router.push('/404'); // Redirige a una página 404 en caso de error
       } finally {
         setLoading(false);
       }
     };
 
     fetchLibro();
-  }, [id, router]);
+  }, [id]);
 
-  if (loading) return <p className="text-center text-red-500">Cargando...</p>;
+  if (loading) return <p className="text-center text-blue-500">Cargando...</p>;
 
   if (!libro) return <p className="text-center text-red-500">No se encontró el libro.</p>;
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <h1 className="text-4xl font-bold mb-6">Detalles del Libro</h1>
-      <div className="flex flex-col md:flex-row md:items-center mb-6">
-        <div className="w-48 h-48 mb-4 md:mb-0">
+    <div className="container mx-auto px-6 py-8">
+      <h1 className="text-4xl font-bold mb-8 text-gray-800">Detalles del Libro</h1>
+      <div className="flex flex-col md:flex-row mb-8">
+        <div className="w-48 h-48 mb-6 md:mb-0">
           <img
             src={libro.imagen}
             alt={libro.titulo}
             className="w-full h-full object-cover rounded-lg border border-gray-300"
           />
         </div>
-        <div className="flex-1">
-          <h2 className="text-3xl font-semibold mb-2">{libro.titulo}</h2>
-          <p className="text-xl mb-2">Autor{autores.length > 1 ? 'es' : ''}: {autores.join(', ')}</p>
-          <p className="text-xl mb-2">Editorial: {editorial}</p>
-          <p className="text-xl mb-2">Género{generos.length > 1 ? 's' : ''}: {generos.join(', ')}</p>
-          <p className="text-xl mb-2">Cantidad disponible: {libro.cantidad || 'No disponible'}</p>
-          <p className="text-xl mb-2">Resumen: {libro.resumen || 'No disponible'}</p>
+        <div className="flex-1 md:ml-8">
+          <h2 className="text-3xl font-semibold mb-4">{libro.titulo}</h2>
+          <p className="text-lg mb-2">Autor{autores.length > 1 ? 'es' : ''}: {autores.join(', ')}</p>
+          <p className="text-lg mb-2">Editorial: {editorial}</p>
+          <p className="text-lg mb-2">Género{generos.length > 1 ? 's' : ''}: {generos.join(', ')}</p>
+          <p className="text-lg mb-2">Cantidad disponible: {libro.cantidad || 'No disponible'}</p>
+          <p className="text-lg mb-4">Resumen: {libro.resumen || 'No disponible'}</p>
+          {user ? (
+            <button
+              onClick={() => router.push(`/libro/prestamo/${id}`)}
+              className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-6 rounded"
+            >
+              Pedir Préstamo
+            </button>
+          ) : (
+            <p className="text-red-500">Debes iniciar sesión para pedir un préstamo.</p>
+          )}
         </div>
       </div>
-      <button
-        onClick={() => router.push(`/libro/prestamo/${id}`)}
-        className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-4 rounded"
-      >
-        Pedir Préstamo
-      </button>
+
+      {/* Contenedor para las notificaciones de react-toastify */}
+      <ToastContainer position="bottom-right" autoClose={5000} hideProgressBar />
     </div>
   );
 };
 
 export default LibroDetalle;
+
