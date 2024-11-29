@@ -3,6 +3,7 @@ import { AuthProvider } from '../hooks/AuthContext';
 import Header from '../components/Header';
 import { ToastContainer } from 'react-toastify';
 import Footer from '../components/Footer'
+import NotificationSection from '../components/NotificationSection';
 import '../styles/globals.css';
 
 function MyApp({ Component, pageProps }) {
@@ -15,6 +16,7 @@ function MyApp({ Component, pageProps }) {
       </Head>
       <div className="flex flex-col min-h-screen">
         <Header />
+        <NotificationSection />
         <main className="flex-grow">
           <Component {...pageProps} />
           <ToastContainer />

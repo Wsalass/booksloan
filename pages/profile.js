@@ -1,10 +1,11 @@
-// pages/profile.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../hooks/useAuth'; 
 import { db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify'; // Importa react-toastify
+import useLoan from '../hooks/useLoan'; // Asegúrate de importar el hook useLoan
+import Link from 'next/link';
 
 const Profile = () => {
   const { user, role, authLoading } = useAuth(); 
@@ -17,10 +18,11 @@ const Profile = () => {
   const [fotoPerfil, setFotoPerfil] = useState('');
   const [ficha, setFicha] = useState('');
   const [tecnologo, setTecnologo] = useState('');
-  const [librosPrestados, setLibrosPrestados] = useState([]);
   const [fotoPreview, setFotoPreview] = useState('');
   const [activeTab, setActiveTab] = useState('perfil');
   const router = useRouter();
+
+  const { loans, loading: loansLoading, error: loansError } = useLoan(); // Usamos el hook useLoan
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -38,16 +40,6 @@ const Profile = () => {
             setFotoPerfil(data.foto_perfil || '');
             setFicha(data.ficha || '');
             setTecnologo(data.tecnologo || '');
-
-            const prestamosRef = collection(db, 'prestamos');
-            const q = query(prestamosRef, where('usuario_id', '==', user.uid));
-            const snapshot = await getDocs(q);
-            const prestamos = await Promise.all(snapshot.docs.map(async (doc) => {
-              const detalleRef = doc(db, 'detalles_prestamos', doc.id);
-              const detalleSnapshot = await getDoc(detalleRef);
-              return detalleSnapshot.exists() ? detalleSnapshot.data() : null;
-            }));
-            setLibrosPrestados(prestamos.filter(libro => libro !== null));
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -83,11 +75,10 @@ const Profile = () => {
         });
         setUserData({ ...userData, nombre, fecha_nacimiento, telefono, foto_perfil: fotoPreview || fotoPerfil, ficha, tecnologo });
         setEditMode(false);
+        toast.success('Perfil actualizado exitosamente!');
+      } catch (error) {
         console.error('Error updating user data:', error);
-        toast.error('Error al actualizar el perfil.'); 
-        
-      } catch{
-        toast.success('Perfil actualizado exitosamente!'); 
+        toast.error('Error al actualizar el perfil.');
       }
     }
   };
@@ -98,9 +89,11 @@ const Profile = () => {
   const isEstu = role === '0gXv7x0EctdgRrVh96B7';
   const isProf = role === '7qm4fox9AjtONPXh8YvR';
   const isFunc = role === 'fNzerO5gAonx0c28MHfK';
+  const isAdmi = role === '9EcXJe1Hfrc5pZw84bwI';
+
   return (
     <div className="container mx-auto px-4 py-6">
-      <header className="bg-lime-500 text-white py-6 px-4 rounded-lg shadow-md mb-6">
+      <header className="bg-wave text-white py-6 px-4 rounded-lg shadow-md mb-6">
         <div className="flex flex-col items-center">
           <div className="relative w-32 h-32 mb-4">
             <img
@@ -129,7 +122,7 @@ const Profile = () => {
           >
             Información de Perfil
           </button>
-          {(isEstu || isProf || isFunc) && (
+          {(isEstu || isProf || isFunc || isAdmi) && (
             <button onClick={() => setActiveTab('prestamos')} className={`px-6 py-3 rounded-t-lg ${activeTab === 'prestamos' ? 'bg-lime-500 text-white' : 'bg-gray-200 text-gray-700'} transition-colors duration-300 shadow-md`}>
               Préstamos
             </button>
@@ -140,6 +133,7 @@ const Profile = () => {
           <div>
             {editMode ? (
               <div>
+                {/* Formulario de edición del perfil */}
                 <div className="mb-4">
                   <label className="block text-xl font-semibold mb-2 text-gray-700">Nombre:</label>
                   <input
@@ -160,49 +154,7 @@ const Profile = () => {
                   />
                 </div>
 
-                <div className="mb-4">
-                  <label className="block text-xl font-semibold mb-2 text-gray-700">Fecha de Nacimiento:</label>
-                  <input
-                    type="date"
-                    value={fechaNacimiento}
-                    onChange={(e) => setFechaNacimiento(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-4 py-2 w-full"
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-xl font-semibold mb-2 text-gray-700">Teléfono:</label>
-                  <input
-                    type="text"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-4 py-2 w-full"
-                  />
-                </div>
-
-                {isEstu && (
-                  <>
-                    <div className="mb-4">
-                      <label className="block text-xl font-semibold mb-2 text-gray-700">Programa de Formación:</label>
-                      <input
-                        type="text"
-                        value={tecnologo}
-                        onChange={(e) => setTecnologo(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full"
-                      />
-                    </div>
-
-                    <div className="mb-4">
-                      <label className="block text-xl font-semibold mb-2 text-gray-700">Ficha:</label>
-                      <input
-                        type="text"
-                        value={ficha}
-                        onChange={(e) => setFicha(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full"
-                      />
-                    </div>
-                  </>
-                )}
+                {/* Resto de los campos de edición */}
 
                 <button
                   onClick={handleSave}
@@ -222,12 +174,6 @@ const Profile = () => {
                 <p className="text-xl font-semibold">Email: {email}</p>
                 <p className="text-xl font-semibold">Fecha de Nacimiento: {fechaNacimiento}</p>
                 <p className="text-xl font-semibold">Teléfono: {telefono}</p>
-                {isEstu && (
-                  <>
-                    <p className="text-xl font-semibold">Programa de Formación: {tecnologo}</p>
-                    <p className="text-xl font-semibold">Ficha: {ficha}</p>
-                  </>
-                )}
                 <button
                   onClick={() => setEditMode(true)}
                   className="bg-lime-500 text-white px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
@@ -241,16 +187,41 @@ const Profile = () => {
 
         {activeTab === 'prestamos' && (
           <div>
-            <h2 className="text-2xl font-bold mb-4">Libros Prestados</h2>
-            {librosPrestados.length > 0 ? (
-              <ul className="list-disc list-inside">
-                {librosPrestados.map((libro, index) => (
-                  <li key={index} className="mb-2">{libro.titulo || 'Título no disponible'}</li>
-                ))}
-              </ul>
-            ) : (
-              <p>No hay libros prestados.</p>
-            )}
+            <h2 className="text-2xl font-semibold mb-4">Préstamos</h2>
+            {loansLoading ? (
+    <p>Cargando libros en préstamo...</p>
+  ) : loansError ? (
+    <p className="text-red-500">{loansError}</p>
+  ) : loans.length > 0 ? (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {loans
+        .filter((loan) => loan.estado === 'pendiente' || loan.estado === 'aceptado') // Filtrar préstamos
+        .map((loan) => (
+          <div
+            key={loan.prestamoId}
+            className="p-2 border border-gray-300 rounded-lg shadow-md bg-white"
+          >
+            <Link href={`/libro/${loan.libro.id}`}>
+              <img
+                src={loan.libro.imagen}
+                alt={loan.libro.titulo}
+                className="w-40 h-20 object-cover rounded-md mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+              />
+            </Link>
+            <Link href={`/libro/${loan.libro.id}`}>
+              <h3 className="text-lg font-semibold cursor-pointer hover:text-blue-500 transition-colors">
+                {loan.libro.titulo}
+              </h3>
+            </Link>
+
+            <p className="text-sm mt-2">Fecha de devolución: {loan.fechaDevolucion}</p>
+            <p className="text-sm">Estado: {loan.estado}</p>
+          </div>
+        ))}
+    </div>
+  ) : (
+    <p>No tienes préstamos activos.</p>
+  )}
           </div>
         )}
       </div>

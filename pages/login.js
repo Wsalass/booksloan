@@ -103,7 +103,7 @@ const Login = () => {
               <p>¿No tienes una cuenta? <a href="/register" className="text-verde-claro hover:text-verde-medio">Regístrate</a></p>
             </div>
             <div className="mt-4 text-center">
-              <p>¿Olvidaste tu contraseña?{' '}<a href="/password-reset" className="text-verde-claro hover:text-verde-medio">Recuperar Contraseña</a></p>
+              <p>¿Olvidaste tu contraseña?{' '}<a href="/resetPassword" className="text-verde-claro hover:text-verde-medio">Recuperar Contraseña</a></p>
             </div>
           </div>
         </form>

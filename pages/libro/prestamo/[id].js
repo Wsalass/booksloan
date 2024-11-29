@@ -3,7 +3,8 @@ import { useRouter } from 'next/router';
 import { db } from '../../../lib/firebase';
 import { doc, getDoc, addDoc, collection, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../../hooks/useAuth';
-import { ToastContainer, toast } from 'react-toastify';
+import useLoan from '../../../hooks/useLoan'; // Asegúrate de que el hook se importa correctamente
+import { toast } from 'react-toastify';
 
 const SolicitarPrestamo = () => {
   const [libro, setLibro] = useState(null);
@@ -12,10 +13,16 @@ const SolicitarPrestamo = () => {
   const [cantidad, setCantidad] = useState(1);
   const [maxCantidad, setMaxCantidad] = useState(3);
   const [loading, setLoading] = useState(true);
-  const [usuarioDb, setUsuarioDb] = useState(null);
-  const { user } = useAuth(); 
+  const { user, userData } = useAuth();
+  const { loans, loading: loansLoading, error: loansError, fetchUserLoans } = useLoan();  // Usamos el hook useLoan
   const router = useRouter();
   const { id } = router.query;
+
+  useEffect(() => {
+    if (user?.uid) {
+      fetchUserLoans(user.uid); // Llamamos a la función de préstamos al cargar el componente
+    }
+  }, [user, fetchUserLoans]);
 
   const obtenerLimiteLibros = (rolId) => {
     switch (rolId) {
@@ -29,20 +36,30 @@ const SolicitarPrestamo = () => {
     }
   };
 
-  const fetchUsuarioDb = async (uid) => {
+  const fetchLibro = async () => {
+    if (!id) return;
+
     try {
-      const usuarioRef = doc(db, 'usuarios', uid);
-      const usuarioSnapshot = await getDoc(usuarioRef);
-      if (usuarioSnapshot.exists()) {
-        setUsuarioDb(usuarioSnapshot.data());
-        const limite = obtenerLimiteLibros(usuarioSnapshot.data().rol_id);
-        setMaxCantidad(limite);
+      const libroRef = doc(db, 'libros', id);
+      const libroSnapshot = await getDoc(libroRef);
+      if (libroSnapshot.exists()) {
+        const libroData = libroSnapshot.data();
+        setLibro(libroData);
+        if (libroData.autor_id) {
+          await fetchAutores(libroData.autor_id);
+        }
+        if (libroData.editorial_id) {
+          await fetchEditorial(libroData.editorial_id);
+        }
       } else {
-        toast.error('No se encontraron datos del usuario en la base de datos.');
+        toast.error('El libro no existe. Redirigiendo...');
+        router.push('/404');
       }
     } catch (error) {
-      console.error('Error al cargar datos del usuario:', error);
-      toast.error('Hubo un problema al cargar los datos del usuario.');
+      console.error('Error al obtener detalles del libro:', error);
+      toast.error('Error al cargar la información del libro. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,44 +89,36 @@ const SolicitarPrestamo = () => {
   };
 
   useEffect(() => {
-    const fetchLibro = async () => {
-      if (!id) return;
-
-      try {
-        const libroRef = doc(db, 'libros', id);
-        const libroSnapshot = await getDoc(libroRef);
-        if (libroSnapshot.exists()) {
-          const libroData = libroSnapshot.data();
-          setLibro(libroData);
-          await Promise.all([
-            libroData.autor_id && fetchAutores(libroData.autor_id),
-            libroData.editorial_id && fetchEditorial(libroData.editorial_id),
-          ]);
-        } else {
-          toast.error('El libro no existe. Redirigiendo...');
-          router.push('/404');
-        }
-      } catch (error) {
-        console.error('Error al obtener detalles del libro:', error);
-        toast.error('Error al cargar la información del libro. Intenta nuevamente.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchLibro();
-  }, [id, router]);
+  }, [id]);
 
   useEffect(() => {
-    if (user && user.uid) {
-      fetchUsuarioDb(user.uid);
+    if (user) {
+      const limite = obtenerLimiteLibros(userData?.rol_id);
+      setMaxCantidad(limite);
     }
-  }, [user]);
+  }, [user, userData]);
+
+  const canRequestLoan = () => {
+    if (!user) return false;
+    const activeLoans = countActiveLoans(loans);
+    const roleLimit = obtenerLimiteLibros(userData?.rol_id);
+    
+    if (userData?.rol_id === '9EcXJe1Hfrc5pZw84bwI') { // Administrador
+      return false;
+    }
+
+    return activeLoans < roleLimit;
+  };
+
+  const countActiveLoans = (loans) => {
+    return loans?.filter(loan => loan.estado === 'pendiente').length || 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!usuarioDb) {
+    if (!user) {
       toast.error('Debes estar logueado para solicitar un préstamo.');
       return;
     }
@@ -119,10 +128,20 @@ const SolicitarPrestamo = () => {
       return;
     }
 
+    if (!canRequestLoan()) {
+      toast.error('Ya has alcanzado tu límite de préstamos.');
+      return;
+    }
+
+    if (!userData?.telefono) {
+      toast.error('Por favor, completa tu número de teléfono antes de solicitar un préstamo.');
+      return;
+    }
+
     const cantidadDisponible = libro.cantidad || 0;
 
-    if (cantidad > cantidadDisponible) {
-      toast.error('La cantidad solicitada excede la cantidad disponible.');
+    if (cantidad < 1 || cantidad > cantidadDisponible) {
+      toast.error('La cantidad solicitada no es válida.');
       return;
     }
 
@@ -131,15 +150,15 @@ const SolicitarPrestamo = () => {
 
     const nuevoPrestamo = {
       libroId: id,
-      usuarioId: user.uid, 
+      usuarioId: user.uid,
       cantidadSolicitada: cantidad,
       estado: 'pendiente',
       fechaSolicitud: new Date(),
       fechaDevolucion: fechaDevolucion.toISOString().split('T')[0],
       usuario: {
-        nombre: usuarioDb.nombre || 'Desconocido',
-        email: usuarioDb.email || 'No proporcionado',
-        telefono: usuarioDb.telefono || 'No proporcionado',
+        nombre: userData?.nombre || 'Desconocido',
+        email: userData?.email || 'No proporcionado',
+        telefono: userData?.telefono || 'No proporcionado',
       },
       libro: {
         titulo: libro.titulo || 'Título desconocido',
@@ -156,15 +175,7 @@ const SolicitarPrestamo = () => {
       router.push(`/libro/${id}`);
     } catch (error) {
       console.error('Error al crear el préstamo:', error);
-      let errorMessage = 'Hubo un error al solicitar el préstamo. Inténtalo nuevamente.';
-      if (error.code === 'permission-denied') {
-        errorMessage = 'No tienes permiso para realizar esta acción.';
-      } else if (error.code === 'not-found') {
-        errorMessage = 'El libro no fue encontrado. Por favor, verifica la información.';
-      } else if (error.code === 'unavailable') {
-        errorMessage = 'El servicio no está disponible en este momento. Intenta más tarde.';
-      }
-      toast.error(errorMessage);
+      toast.error('Hubo un error al solicitar el préstamo. Inténtalo nuevamente.');
     }
   };
 
@@ -174,9 +185,8 @@ const SolicitarPrestamo = () => {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="text-4xl font-bold mb-6">Solicitud de Préstamo</h1>
 
-      {/* Mostrar información del libro */}
+  
       <div className="mb-6">
         <h2 className="text-2xl font-semibold mb-2">Libro: {libro.titulo}</h2>
         <p className="text-xl">Cantidad disponible: {libro.cantidad}</p>
@@ -185,12 +195,12 @@ const SolicitarPrestamo = () => {
       </div>
 
       {/* Mostrar información del usuario si está logueado */}
-      {usuarioDb ? (
+      {userData ? (
         <div className="mb-6">
           <h3 className="text-2xl font-semibold mb-2">Información del usuario</h3>
-          <p className="text-xl">Nombre: {usuarioDb.nombre || 'Desconocido'}</p>
-          <p className="text-xl">Correo: {usuarioDb.email || 'No proporcionado'}</p>
-          <p className="text-xl">Teléfono: {usuarioDb.telefono || 'No proporcionado'}</p>
+          <p className="text-xl">Nombre: {userData.nombre || 'Desconocido'}</p>
+          <p className="text-xl">Correo: {userData.email || 'No proporcionado'}</p>
+          <p className="text-xl">Teléfono: {userData.telefono || 'No proporcionado'}</p>
         </div>
       ) : (
         <p className="text-xl text-red-600">No estás logueado. Por favor, inicia sesión para solicitar un préstamo.</p>
@@ -199,30 +209,26 @@ const SolicitarPrestamo = () => {
       {/* Formulario para solicitar el préstamo */}
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
-          <label htmlFor="cantidad" className="block text-xl font-semibold mb-2">
-            Cantidad a solicitar (Máximo {maxCantidad})
-          </label>
+          <label htmlFor="cantidad" className="block text-xl font-medium">Cantidad de libros:</label>
           <input
             type="number"
             id="cantidad"
             value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
             min="1"
-            max={maxCantidad}
-            onChange={(e) => setCantidad(parseInt(e.target.value))}
-            className="border border-gray-300 px-3 py-2 rounded w-full"
-            required
+            max={libro.cantidad}
+            className="border rounded-md px-4 py-2 w-full"
           />
         </div>
 
         <button
           type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none"
+          className={`py-2 px-6 rounded-md ${canRequestLoan() ? 'bg-blue-600' : 'bg-gray-400 cursor-not-allowed'}`}
+          disabled={!canRequestLoan()}
         >
-          Solicitar Préstamo
+          Solicitar préstamo
         </button>
       </form>
-
-      <ToastContainer />
     </div>
   );
 };

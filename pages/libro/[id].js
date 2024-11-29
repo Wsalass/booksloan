@@ -4,10 +4,10 @@ import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useAuth } from '../../hooks/useAuth'; // Importar el hook de autenticación
+import { useAuth } from '../../hooks/useAuth';
 
 const LibroDetalle = () => {
-  const { user, userData } = useAuth(); // Obtener el usuario y los datos del usuario
+  const { user,role } = useAuth(); 
   const [libro, setLibro] = useState(null);
   const [autores, setAutores] = useState([]);
   const [editorial, setEditorial] = useState('');
@@ -27,19 +27,14 @@ const LibroDetalle = () => {
           const libroData = libroSnapshot.data();
           setLibro(libroData);
 
-          // Obtener autores
-          if (libroData.autor_id && libroData.autor_id.length > 0) {
-            const autoresPromises = libroData.autor_id.map(async (autorId) => {
+          const autoresData = await Promise.all(
+            (libroData.autor_id || []).map(async (autorId) => {
               const autorDoc = await getDoc(doc(db, 'autores', autorId));
               return autorDoc.exists() ? autorDoc.data().nombre : 'Desconocido';
-            });
-            const autoresData = await Promise.all(autoresPromises);
-            setAutores(autoresData);
-          } else {
-            setAutores(['No especificado']);
-          }
+            })
+          );
+          setAutores(autoresData.length > 0 ? autoresData : ['No especificado']);
 
-          // Obtener editorial
           if (libroData.editorial_id) {
             const editorialDoc = await getDoc(doc(db, 'editoriales', libroData.editorial_id));
             setEditorial(editorialDoc.exists() ? editorialDoc.data().nombre : 'Desconocido');
@@ -47,17 +42,13 @@ const LibroDetalle = () => {
             setEditorial('No especificado');
           }
 
-          // Obtener géneros
-          if (libroData.genero_id && libroData.genero_id.length > 0) {
-            const generosPromises = libroData.genero_id.map(async (generoId) => {
+          const generosData = await Promise.all(
+            (libroData.genero_id || []).map(async (generoId) => {
               const generoDoc = await getDoc(doc(db, 'generos', generoId));
               return generoDoc.exists() ? generoDoc.data().nombre : 'Desconocido';
-            });
-            const generosData = await Promise.all(generosPromises);
-            setGeneros(generosData);
-          } else {
-            setGeneros(['No especificado']);
-          }
+            })
+          );
+          setGeneros(generosData.length > 0 ? generosData : ['No especificado']);
         } else {
           toast.error('El libro no existe');
         }
@@ -76,42 +67,59 @@ const LibroDetalle = () => {
 
   if (!libro) return <p className="text-center text-red-500">No se encontró el libro.</p>;
 
+  const Admin = role === '9EcXJe1Hfrc5pZw84bwI';
+
   return (
-    <div className="container mx-auto px-6 py-8">
-      <h1 className="text-4xl font-bold mb-8 text-gray-800">Detalles del Libro</h1>
-      <div className="flex flex-col md:flex-row mb-8">
-        <div className="w-48 h-48 mb-6 md:mb-0">
-          <img
-            src={libro.imagen}
-            alt={libro.titulo}
-            className="w-full h-full object-cover rounded-lg border border-gray-300"
-          />
-        </div>
-        <div className="flex-1 md:ml-8">
-          <h2 className="text-3xl font-semibold mb-4">{libro.titulo}</h2>
-          <p className="text-lg mb-2">Autor{autores.length > 1 ? 'es' : ''}: {autores.join(', ')}</p>
-          <p className="text-lg mb-2">Editorial: {editorial}</p>
-          <p className="text-lg mb-2">Género{generos.length > 1 ? 's' : ''}: {generos.join(', ')}</p>
-          <p className="text-lg mb-2">Cantidad disponible: {libro.cantidad || 'No disponible'}</p>
-          <p className="text-lg mb-4">Resumen: {libro.resumen || 'No disponible'}</p>
-          {user ? (
-            <button
-              onClick={() => router.push(`/libro/prestamo/${id}`)}
-              className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-6 rounded"
-            >
-              Pedir Préstamo
-            </button>
-          ) : (
-            <p className="text-red-500">Debes iniciar sesión para pedir un préstamo.</p>
-          )}
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col items-center mb-4">
+        <div className="bg-wave py-6 px-6 rounded-xl shadow-lg mb-8 w-full">
+          <div className="flex flex-col md:flex-row items-start gap-6">
+            <div className="w-full md:w-60 h-80 bg-gray-100 rounded-lg overflow-hidden shadow-lg">
+              <img 
+                src={libro.imagen} 
+                alt={libro.titulo} 
+                className="w-full h-full object-cover rounded-md" 
+                style={{ objectFit: 'cover', objectPosition: 'center' }} 
+              />
+            </div>
+            <div className="flex flex-col justify-between w-full">
+              <h1 className="text-2xl font-extrabold text-gray-100 leading-tight mb-4">{libro.titulo}</h1>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h2 className="font-semibold text-lg text-gray-100">Resumen</h2>
+                  <p className="text-gray-100">{libro.resumen || 'No disponible'}</p>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-lg text-gray-100">Detalles</h2>
+                  <p className="text-gray-100">Autor{autores.length > 1 ? 'es' : ''}: {autores.join(', ')}</p>
+                  <p className="text-gray-100">Editorial: {editorial}</p>
+                  <p className="text-gray-100">Género{generos.length > 1 ? 's' : ''}: {generos.join(', ')}</p>
+                  <p className="text-gray-100">Cantidad disponible: {libro.cantidad || 'No disponible'}</p>
+                  
+                  <div className="mt-6 flex">
+                    {user && Admin ? (  
+                      <p className="text-red-500">No puedes pedir préstamos como administrador cambia a un usuario de Funcionario.</p>
+                    ): (
+                      <div className="mt-6 flex">
+                        {user ? (
+                          <button onClick={() => router.push(`/libro/prestamo/${id}`)}className="bg-red-500 hover:bg-red-400 text-white font-bold py-2 px-6 rounded">
+                            Pedir Préstamo
+                          </button>
+                        ) : (
+                          <p className="text-red-500">Debes iniciar sesión para pedir un préstamo.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <ToastContainer position="bottom-right" autoClose={5000} hideProgressBar />
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Contenedor para las notificaciones de react-toastify */}
-      <ToastContainer position="bottom-right" autoClose={5000} hideProgressBar />
     </div>
   );
 };
 
 export default LibroDetalle;
-

@@ -2,3 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes wave {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  .bg-wave {
+    background: linear-gradient(90deg, #84cc16, #22c55e, #84cc16);
+    background-size: 200% 200%;
+    animation: wave 6s ease-in-out infinite;
+  }
+  
